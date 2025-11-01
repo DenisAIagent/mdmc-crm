@@ -14,7 +14,7 @@
     "client:dev": "cd client && npm run dev",
     "client:build": "cd client && npm run build",
     "build": "npm run client:build",
-    "start": "npm run server:start",
+    "start": "node server/server.js",
     "start:server": "node server/server.js",
     "create:admin": "node create-secure-admin.js",
     "test": "jest",

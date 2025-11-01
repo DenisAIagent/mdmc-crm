@@ -9,6 +9,8 @@ import cookieParser from 'cookie-parser'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 // Import configurations et middlewares
 import { connectDB } from './config/database.js'
@@ -29,6 +31,10 @@ import webhooksRoutes from './routes/webhooks.js'
 
 // Configuration des variables d'environnement
 dotenv.config()
+
+// Configuration pour ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 const httpServer = createServer(app)
@@ -106,6 +112,15 @@ app.get('/health', (req, res) => {
   })
 })
 
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'MDMC CRM API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  })
+})
+
 // Routes API
 app.use('/api/auth', authRoutes)
 app.use('/api/leads', leadsRoutes)
@@ -118,20 +133,30 @@ app.use('/api/webhooks', webhooksRoutes)
 
 // Servir les fichiers statiques du client en production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('client/dist'))
+  const clientDistPath = path.join(__dirname, '..', 'client', 'dist')
+  app.use(express.static(clientDistPath))
 
+  // Pour toutes les routes non-API, servir index.html (SPA routing)
   app.get('*', (req, res) => {
-    res.sendFile(path.resolve('client', 'dist', 'index.html'))
+    // Si c'est une route API qui n'existe pas, retourner 404 JSON
+    if (req.originalUrl.startsWith('/api/')) {
+      return res.status(404).json({
+        success: false,
+        message: 'Route API non trouvée'
+      })
+    }
+    // Sinon, servir l'app React
+    res.sendFile(path.join(clientDistPath, 'index.html'))
+  })
+} else {
+  // En développement, gestion des erreurs 404 pour les API seulement
+  app.use('/api/*', (req, res) => {
+    res.status(404).json({
+      success: false,
+      message: 'Route API non trouvée'
+    })
   })
 }
-
-// Gestion des erreurs 404
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route non trouvée'
-  })
-})
 
 // Middleware de gestion d'erreurs
 app.use(errorHandler)
