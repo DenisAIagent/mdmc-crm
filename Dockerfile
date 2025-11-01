@@ -14,7 +14,7 @@ COPY client/package*.json client/package-lock.json ./client/
 
 # Installer les dépendances sans cache
 RUN npm ci --prefer-offline --no-audit --no-cache
-RUN cd client && npm ci --prefer-offline --no-audit --no-cache
+RUN cd client && npm install --prefer-offline --no-audit
 
 # Copier tout le code source
 COPY . .
