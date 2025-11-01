@@ -134,7 +134,25 @@ app.use('/api/webhooks', webhooksRoutes)
 // Servir les fichiers statiques du client en production
 if (process.env.NODE_ENV === 'production') {
   const clientDistPath = path.join(__dirname, '..', 'client', 'dist')
-  app.use(express.static(clientDistPath))
+
+  // Configuration explicite pour les assets avec cache et MIME types corrects
+  app.use('/assets', express.static(path.join(clientDistPath, 'assets'), {
+    maxAge: '1y', // Cache 1 an pour les assets
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=UTF-8')
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=UTF-8')
+      }
+    }
+  }))
+
+  // Servir tous les autres fichiers statiques
+  app.use(express.static(clientDistPath, {
+    maxAge: '1d' // Cache 1 jour pour les autres fichiers
+  }))
 
   // Pour toutes les routes non-API, servir index.html (SPA routing)
   app.get('*', (req, res) => {
