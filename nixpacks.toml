@@ -1,18 +1,18 @@
 [build]
-cmd = "npm ci && npm run build"
+cmd = "npm ci --prefer-offline --no-audit && npm run build"
 
 [start]
-cmd = "npm start"
+cmd = "./start.sh"
 
 [variables]
 NODE_ENV = "production"
 
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "npm-9_x"]
+nixPkgs = ["nodejs-20_x", "npm-10_x"]
 
 [phases.install]
 dependsOn = ["setup"]
-cmd = "npm ci"
+cmd = "npm ci --prefer-offline --no-audit"
 
 [phases.build]
 dependsOn = ["install"]
