@@ -7,7 +7,7 @@ WORKDIR /app
 # Variables d'environnement
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV CACHE_BUST=v2
+ENV CACHE_BUST=v3
 
 # Copier les fichiers package.json et package-lock.json
 COPY package*.json ./
