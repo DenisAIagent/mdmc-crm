@@ -1,0 +1,737 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: #ffffff;
+  }
+
+  body {
+    background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%);
+    color: #ffffff;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Buttons MDMC */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn;
+    background: linear-gradient(135deg, theme(colors.primary.500) 0%, theme(colors.primary.600) 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, theme(colors.primary.400) 0%, theme(colors.primary.500) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
+  }
+  .btn-primary:focus {
+    --tw-ring-color: theme(colors.primary.500);
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-500 text-white hover:bg-gray-600 focus:ring-gray-500;
+  }
+
+  .btn-success {
+    @apply btn bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+
+  .btn-warning {
+    @apply btn bg-yellow-600 text-white hover:bg-yellow-700 focus:ring-yellow-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent;
+    color: #ffffff;
+  }
+  .btn-ghost:hover {
+    background-color: #000000;
+    color: #e50914;
+  }
+  .btn-ghost:focus {
+    --tw-ring-color: #e50914;
+  }
+
+  .btn-outline {
+    @apply btn bg-transparent;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+  }
+  .btn-outline:hover {
+    background-color: #e50914;
+    color: #ffffff;
+  }
+  .btn-outline:focus {
+    --tw-ring-color: #e50914;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  /* Form Elements MDMC */
+  .form-input {
+    @apply block w-full rounded-lg px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1;
+    border: 1px solid #ffffff;
+    background-color: #000000;
+    color: #ffffff;
+  }
+  .form-input::placeholder {
+    color: #ffffff;
+  }
+  .form-input:focus {
+    border-color: #e50914;
+    --tw-ring-color: #e50914;
+  }
+  .form-input:disabled {
+    background-color: #000000;
+    color: #ffffff;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium mb-1;
+    color: #ffffff;
+  }
+
+  .form-error {
+    @apply text-sm text-red-400 mt-1;
+  }
+
+  .form-help {
+    @apply text-sm text-gray-400 mt-1;
+  }
+
+  /* Cards MDMC */
+  .card {
+    background-color: #000000;
+    border-radius: 0.75rem;
+    border: 1px solid #ffffff;
+    box-shadow: 0 10px 15px -3px rgba(229, 9, 20, 0.3), 0 4px 6px -2px rgba(229, 9, 20, 0.1);
+  }
+
+  .card-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #ffffff;
+  }
+
+  .card-body {
+    @apply p-6;
+  }
+
+  .card-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #ffffff;
+    background-color: #000000;
+    border-radius: 0 0 0.75rem 0.75rem;
+  }
+
+  /* Status Badges MDMC */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-new {
+    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-contacted {
+    @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  .badge-qualified {
+    @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30;
+  }
+
+  .badge-won {
+    @apply badge bg-green-500/20 text-green-400 border border-green-500/30;
+  }
+
+  .badge-lost {
+    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-active {
+    @apply badge bg-green-500/20 text-green-400 border border-green-500/30;
+  }
+
+  .badge-paused {
+    @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  .badge-completed {
+    @apply badge bg-gray-500/20 text-gray-400 border border-gray-500/30;
+  }
+
+  /* Platform Badges MDMC */
+  .badge-youtube {
+    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-spotify {
+    @apply badge bg-green-500/20 text-green-400 border border-green-500/30;
+  }
+
+  .badge-meta {
+    @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30;
+  }
+
+  .badge-tiktok {
+    @apply badge bg-gray-500/20 text-gray-300 border border-gray-500/30;
+  }
+
+  .badge-google {
+    @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  /* Loading */
+  .loading-spinner {
+    @apply animate-spin rounded-full border-2 border-slate-600 border-t-red-500;
+  }
+
+  /* Table MDMC */
+  .table {
+    @apply w-full divide-y;
+    border-color: #ffffff;
+  }
+
+  .table-header {
+    background-color: #000000;
+  }
+
+  .table-header-cell {
+    @apply px-6 py-3 text-left text-xs font-medium uppercase tracking-wider;
+    color: #ffffff;
+  }
+
+  .table-body {
+    background-color: #000000;
+    border-color: #ffffff;
+  }
+  .table-body > * + * {
+    border-top: 1px solid #ffffff;
+  }
+
+  .table-row {
+    @apply transition-colors;
+  }
+  .table-row:hover {
+    background-color: #e50914;
+  }
+
+  .table-cell {
+    @apply px-6 py-4 whitespace-nowrap text-sm;
+    color: #ffffff;
+  }
+
+  /* Modal MDMC Dark */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50;
+  }
+
+  .modal-content {
+    @apply rounded-xl shadow-2xl max-w-md w-full max-h-screen overflow-y-auto;
+    background-color: #000000;
+    border: 1px solid #ffffff;
+  }
+
+  .modal-header {
+    @apply px-6 py-4;
+    border-bottom: 1px solid #ffffff;
+  }
+
+  .modal-title {
+    @apply text-lg font-semibold;
+    color: #ffffff;
+  }
+
+  .modal-body {
+    @apply p-6;
+  }
+
+  .modal-footer {
+    @apply px-6 py-4 flex justify-end space-x-3;
+    border-top: 1px solid #ffffff;
+  }
+
+  /* Kanban MDMC */
+  .kanban-board {
+    @apply flex space-x-6 overflow-x-auto pb-6;
+  }
+
+  .kanban-column {
+    @apply flex-shrink-0 w-80;
+  }
+
+  .kanban-header {
+    @apply flex items-center justify-between p-4 rounded-t-lg;
+    background-color: #000000;
+    border-bottom: 1px solid #ffffff;
+  }
+
+  .kanban-body {
+    @apply p-4 space-y-3 min-h-96;
+    background-color: #000000;
+  }
+
+  .kanban-card {
+    @apply card p-4 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200;
+  }
+
+  /* Metrics MDMC */
+  .metric-card {
+    @apply card p-6;
+  }
+
+  .metric-value {
+    @apply text-3xl font-bold text-white;
+  }
+
+  .metric-label {
+    @apply text-sm font-medium text-white uppercase tracking-wide;
+  }
+
+  .metric-change {
+    @apply text-sm font-medium;
+  }
+
+  .metric-change-positive {
+    @apply metric-change text-green-400;
+  }
+
+  .metric-change-negative {
+    @apply metric-change text-red-400;
+  }
+
+  /* MDMC Glass Effects */
+  .glass-card {
+    @apply backdrop-blur-xl rounded-2xl;
+    background: linear-gradient(
+      135deg,
+      rgba(139, 92, 246, 0.1) 0%,
+      rgba(14, 165, 233, 0.05) 50%,
+      rgba(168, 85, 247, 0.1) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 8px 32px 0 rgba(139, 92, 246, 0.15),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-card-music {
+    @apply backdrop-blur-xl rounded-3xl;
+    background: linear-gradient(
+      135deg,
+      rgba(139, 92, 246, 0.15) 0%,
+      rgba(168, 85, 247, 0.1) 50%,
+      rgba(196, 181, 253, 0.05) 100%
+    );
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    box-shadow:
+      0 20px 40px 0 rgba(139, 92, 246, 0.2),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glass-card-hover:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow:
+      0 20px 40px 0 rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  }
+
+  /* MDMC Music Gradients */
+  .gradient-primary {
+    background: linear-gradient(135deg, theme(colors.primary.600) 0%, theme(colors.primary.700) 100%);
+  }
+
+  .gradient-secondary {
+    background: linear-gradient(135deg, theme(colors.secondary.600) 0%, theme(colors.secondary.700) 100%);
+  }
+
+  .gradient-accent {
+    background: linear-gradient(135deg, theme(colors.accent.500) 0%, theme(colors.accent.600) 100%);
+  }
+
+  .gradient-music {
+    background: linear-gradient(135deg, theme(colors.music.bass) 0%, theme(colors.music.treble) 100%);
+  }
+
+  .gradient-musical {
+    background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 50%, #c4b5fd 100%);
+  }
+
+  .gradient-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  }
+
+  .gradient-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+  }
+
+  .text-glow-blue {
+    text-shadow: 0 0 20px rgba(14, 165, 233, 0.5);
+  }
+
+  .text-glow-gold {
+    text-shadow: 0 0 20px rgba(234, 179, 8, 0.5);
+  }
+
+  .icon-glow {
+    filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.4));
+  }
+
+  .icon-glow-blue {
+    filter: drop-shadow(0 0 8px rgba(14, 165, 233, 0.4));
+  }
+
+  .icon-glow-gold {
+    filter: drop-shadow(0 0 8px rgba(234, 179, 8, 0.4));
+  }
+
+  /* Platform specific gradients */
+  .gradient-youtube {
+    background: linear-gradient(135deg, #FF0000 0%, #CC0000 100%);
+  }
+
+  .gradient-spotify {
+    background: linear-gradient(135deg, #1DB954 0%, #1AA34A 100%);
+  }
+
+  .gradient-meta {
+    background: linear-gradient(135deg, #1877F2 0%, #0F5FC7 100%);
+  }
+
+  .gradient-tiktok {
+    background: linear-gradient(135deg, #000000 0%, #333333 100%);
+  }
+
+  /* Scrollbars MDMC Dark */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(71 85 105) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(71 85 105);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(100 116 139);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(99, 102, 241, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99, 102, 241, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .backdrop-blur-safe {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* MDMC Keyframes */
+  @keyframes pulseGlow {
+    0%, 100% {
+      opacity: 1;
+      filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.5));
+    }
+    50% {
+      opacity: 0.8;
+      filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.8));
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(99, 102, 241, 0.4),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* MDMC Music Login Animations */
+  @keyframes musicFloat {
+    0%, 100% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-100vh) rotate(360deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes musicPulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes audioEqualizer {
+    0% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+    100% {
+      transform: scaleY(0.3);
+    }
+  }
+
+  @keyframes rippleWave {
+    0% {
+      transform: scale(0);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes mdmcGlow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(229, 9, 20, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(229, 9, 20, 0.6), 0 0 40px rgba(229, 9, 20, 0.4);
+    }
+  }
+
+  @keyframes loginSlideIn {
+    from {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes buttonPress {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(0.98);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes waveform {
+    0% {
+      height: 8px;
+    }
+    25% {
+      height: 24px;
+    }
+    50% {
+      height: 16px;
+    }
+    75% {
+      height: 32px;
+    }
+    100% {
+      height: 8px;
+    }
+  }
+
+  /* Classes pour les animations musicales modernes */
+  .music-float {
+    animation: musicFloat 8s infinite linear;
+  }
+
+  .music-pulse {
+    animation: musicPulse 2s infinite ease-in-out;
+  }
+
+  .audio-equalizer {
+    animation: audioEqualizer 0.8s infinite alternate ease-in-out;
+  }
+
+  .music-wave {
+    animation: wave 2s ease-in-out infinite;
+  }
+
+  .vinyl-rotate {
+    animation: vinylSpin 3s linear infinite;
+  }
+
+  .beat-sync {
+    animation: beat 1s ease-in-out infinite;
+  }
+
+  .float-gentle {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .ripple-wave {
+    animation: rippleWave 2s infinite;
+  }
+
+  .mdmc-glow {
+    animation: mdmcGlow 3s infinite ease-in-out;
+  }
+
+  .login-slide-in {
+    animation: loginSlideIn 0.6s ease-out;
+  }
+
+  .button-press:active {
+    animation: buttonPress 0.15s ease-out;
+  }
+
+  .waveform-bar {
+    animation: waveform 1.2s infinite ease-in-out;
+  }
+
+  /* Styles spécifiques pour la page de login */
+  .login-background {
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%);
+    position: relative;
+  }
+
+  .login-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(229, 9, 20, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(229, 9, 20, 0.08) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .music-note {
+    font-size: 1.5rem;
+    color: rgba(229, 9, 20, 0.3);
+    position: absolute;
+    animation: musicFloat 10s infinite linear;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .audio-visualizer {
+    display: flex;
+    align-items: end;
+    gap: 2px;
+    height: 40px;
+  }
+
+  .audio-bar {
+    width: 3px;
+    background: linear-gradient(to top, #e50914, #ff4757);
+    border-radius: 2px;
+    animation: audioEqualizer 1s infinite alternate ease-in-out;
+  }
+
+  /* Responsive pour les animations */
+  @media (prefers-reduced-motion: reduce) {
+    .music-float,
+    .music-pulse,
+    .audio-equalizer,
+    .ripple-wave,
+    .mdmc-glow,
+    .waveform-bar {
+      animation: none !important;
+    }
+  }
+
+  /* Touch device optimizations */
+  @media (hover: none) and (pointer: coarse) {
+    .mdmc-glow:active {
+      animation: mdmcGlow 0.3s ease-out;
+    }
+  }
+}

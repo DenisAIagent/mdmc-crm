@@ -1,0 +1,5888 @@
+Architecture CRM MDMC Music Ads
+1. Stack technique recommandée
+Frontend (déjà en place)
+
+React + Vite (structure existante)
+Dashboard admin étendu (AdminPanel.jsx)
+
+Backend
+
+Option A (rapide) : n8n + Google Sheets (cohérent avec ton écosystème actuel)
+Option B (scalable) : Node.js/Express + MongoDB (déjà utilisé pour Railway)
+Option C (hybride) : n8n pour l'orchestration + MongoDB pour le stockage
+
+Recommandation : Option C — exploitation de tes forces actuelles (n8n) + base solide pour scale.
+
+2. Structure des données
+javascript// Collection: leads
+{
+  _id: ObjectId,
+  source: "simulator" | "contact_form" | "calendly" | "manual",
+  platform: "youtube" | "meta" | "tiktok",
+  assignedTo: "denis" | "marine",
+  status: "new" | "contacted" | "qualified" | "proposal_sent" | "won" | "lost",
+  
+  // Informations client
+  artistName: String,
+  email: String,
+  phone: String,
+  country: String,
+  
+  // Données campagne
+  budget: Number,
+  campaignType: String,
+  estimatedViews: Number,
+  estimatedCPV: Number,
+  
+  // Tracking
+  createdAt: Date,
+  lastContactDate: Date,
+  wonDate: Date,
+  lostReason: String,
+  
+  // Notes & interactions
+  notes: [{
+    author: String,
+    content: String,
+    date: Date
+  }],
+  
+  // Follow-up
+  nextFollowUp: Date,
+  followUpCount: Number,
+  
+  // Revenue
+  dealValue: Number, // Montant de la vente si won
+  commission: Number // Pour tracking revenue par agent
+}
+javascript// Collection: campaigns (post-vente)
+{
+  _id: ObjectId,
+  leadId: ObjectId, // Référence au lead
+  platform: String,
+  managedBy: "denis" | "marine",
+  
+  // Budget & performance
+  budget: Number,
+  spent: Number,
+  status: "active" | "paused" | "completed",
+  
+  // KPIs
+  views: Number,
+  clicks: Number,
+  conversions: Number,
+  ctr: Number,
+  cpv: Number,
+  
+  // Timeline
+  startDate: Date,
+  endDate: Date,
+  
+  // Client satisfaction
+  clientFeedback: String,
+  nps: Number
+}
+```
+
+---
+
+### **3. Workflow n8n pour automatisation**
+
+**Workflow 1 : Lead Capture & Assignment**
+```
+[Webhook Simulator] → [Parse Data] → [Assign by Platform] → [Insert MongoDB] → [Notify Slack/Email]
+                                            ↓
+                              YouTube/TikTok → Denis
+                              Meta → Marine
+```
+
+**Workflow 2 : Lead Follow-up Automation**
+```
+[Schedule Trigger - Daily 9AM] → [Query MongoDB: nextFollowUp = Today] → [Send Email Reminder] → [Update followUpCount]
+```
+
+**Workflow 3 : Campaign Performance Sync**
+```
+[Schedule - Every 6h] → [Fetch Google Ads API] → [Fetch Meta Ads API] → [Update MongoDB campaigns] → [Alert if budget >90%]
+
+4. Interface CRM (AdminPanel.jsx étendu)
+Dashboard principal
+jsx// Vue d'ensemble
+<Dashboard>
+  <StatsCards>
+    <Card title="Leads ce mois">
+      <Number>{totalLeads}</Number>
+      <Breakdown>Denis: {denisLeads} | Marine: {marineLeads}</Breakdown>
+    </Card>
+    
+    <Card title="Taux de conversion">
+      <Percentage>{conversionRate}%</Percentage>
+      <Target>Objectif: 35%</Target>
+    </Card>
+    
+    <Card title="Revenue MTD">
+      <Amount>{monthlyRevenue}€</Amount>
+      <Growth>+{growth}% vs mois dernier</Growth>
+    </Card>
+    
+    <Card title="Campagnes actives">
+      <Number>{activeCampaigns}</Number>
+      <ByPlatform>YouTube: 12 | Meta: 8 | TikTok: 5</ByPlatform>
+    </Card>
+  </StatsCards>
+  
+  <Charts>
+    <LineChart title="Leads par semaine" data={weeklyLeads} />
+    <PieChart title="Répartition par plateforme" data={platformSplit} />
+    <BarChart title="Performance par agent" data={agentPerformance} />
+  </Charts>
+</Dashboard>
+Pipeline de vente (Kanban)
+jsx<LeadPipeline>
+  <Column status="new" count={12}>
+    {newLeads.map(lead => (
+      <LeadCard 
+        key={lead._id}
+        artist={lead.artistName}
+        platform={lead.platform}
+        budget={lead.budget}
+        assignedTo={lead.assignedTo}
+        daysOld={daysSince(lead.createdAt)}
+        onDrag={handleStatusChange}
+      />
+    ))}
+  </Column>
+  
+  <Column status="contacted" count={8}>...</Column>
+  <Column status="qualified" count={5}>...</Column>
+  <Column status="proposal_sent" count={3}>...</Column>
+  <Column status="won" count={2}>...</Column>
+</LeadPipeline>
+Détail d'un lead
+jsx<LeadDetail leadId={selectedLead}>
+  <Header>
+    <ArtistName>{lead.artistName}</ArtistName>
+    <StatusBadge status={lead.status} />
+    <AssignButton currentAgent={lead.assignedTo} onReassign={handleReassign} />
+  </Header>
+  
+  <InfoGrid>
+    <Section title="Contact">
+      <Field label="Email">{lead.email}</Field>
+      <Field label="Téléphone">{lead.phone}</Field>
+      <Field label="Pays">{lead.country}</Field>
+    </Section>
+    
+    <Section title="Campagne souhaitée">
+      <Field label="Plateforme"><PlatformIcon platform={lead.platform} /></Field>
+      <Field label="Budget">{lead.budget}€</Field>
+      <Field label="Type">{lead.campaignType}</Field>
+    </Section>
+    
+    <Section title="Prévisions">
+      <Field label="Vues estimées">{formatNumber(lead.estimatedViews)}</Field>
+      <Field label="CPV estimé">{lead.estimatedCPV}€</Field>
+    </Section>
+  </InfoGrid>
+  
+  <Timeline>
+    {lead.notes.map(note => (
+      <TimelineItem key={note.date}>
+        <Avatar author={note.author} />
+        <Content>{note.content}</Content>
+        <Date>{formatDate(note.date)}</Date>
+      </TimelineItem>
+    ))}
+  </Timeline>
+  
+  <Actions>
+    <Button onClick={openEmailModal}>✉️ Envoyer email</Button>
+    <Button onClick={scheduleCall}>📞 Planifier appel</Button>
+    <Button onClick={sendProposal}>📄 Envoyer proposition</Button>
+    <Button onClick={markAsWon}>✅ Marquer gagné</Button>
+  </Actions>
+  
+  <NoteInput onSubmit={addNote} />
+</LeadDetail>
+
+5. Fonctionnalités clés
+Auto-assignment par plateforme
+
+YouTube/TikTok → Denis automatiquement
+Meta → Marine automatiquement
+Possibilité de réassigner manuellement
+
+Alertes intelligentes
+
+Lead non contacté depuis 48h
+Follow-up oublié
+Campagne avec budget épuisé à 90%
+Lead qualifié sans proposition depuis 7 jours
+
+Rapports automatiques
+
+Email hebdomadaire : leads/conversions/revenue par agent
+Dashboard temps réel
+Export CSV pour compta
+
+Intégration calendrier
+
+Sync avec Calendly (appels réservés → auto-création lead)
+Rappels Google Calendar pour follow-ups
+
+
+6. Implémentation par étapes
+Phase 1 (Semaine 1-2) — MVP fonctionnel
+
+ Setup MongoDB + collections
+ n8n workflow : Webhook simulator → MongoDB
+ AdminPanel : Liste des leads (tableau simple)
+ Auto-assignment par plateforme
+ Ajout manuel de notes
+
+Phase 2 (Semaine 3-4) — Pipeline de vente
+
+ Vue Kanban drag & drop
+ Changement de statut
+ Filtres (plateforme, agent, statut)
+ Détail lead avec timeline
+
+Phase 3 (Semaine 5-6) — Automatisation
+
+ Follow-up automatique (emails Brevo)
+ Alertes Slack pour nouveaux leads
+ Dashboard analytics avec charts
+ Rapports hebdomadaires auto
+
+Phase 4 (Semaine 7-8) — Campagnes actives
+
+ Collection campaigns
+ Sync performance Google/Meta Ads
+ KPIs en temps réel
+ Alertes budget
+
+
+7. Code de démarrage
+API Routes (backend/routes/crm.js)
+javascriptimport express from 'express';
+import { ObjectId } from 'mongodb';
+import { connectDB } from '../config/db.js';
+
+const router = express.Router();
+
+// GET /api/crm/leads - Liste des leads avec filtres
+router.get('/leads', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const { platform, assignedTo, status } = req.query;
+    
+    const filters = {};
+    if (platform) filters.platform = platform;
+    if (assignedTo) filters.assignedTo = assignedTo;
+    if (status) filters.status = status;
+    
+    const leads = await db.collection('leads')
+      .find(filters)
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    res.json({ success: true, leads });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/crm/leads - Créer un lead (depuis simulator ou form)
+router.post('/leads', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const leadData = {
+      ...req.body,
+      assignedTo: assignAgent(req.body.platform),
+      status: 'new',
+      createdAt: new Date(),
+      followUpCount: 0,
+      nextFollowUp: addDays(new Date(), 2), // Follow-up dans 2 jours
+      notes: []
+    };
+    
+    const result = await db.collection('leads').insertOne(leadData);
+    
+    // Déclencher notification
+    await notifyNewLead(leadData);
+    
+    res.json({ success: true, leadId: result.insertedId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/crm/leads/:id - Mettre à jour un lead
+router.patch('/leads/:id', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const { id } = req.params;
+    const updates = req.body;
+    
+    // Si status change vers "won", ajouter wonDate et dealValue
+    if (updates.status === 'won' && !updates.wonDate) {
+      updates.wonDate = new Date();
+    }
+    
+    await db.collection('leads').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updates }
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/crm/leads/:id/notes - Ajouter une note
+router.post('/leads/:id/notes', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const { id } = req.params;
+    const { author, content } = req.body;
+    
+    const note = {
+      author,
+      content,
+      date: new Date()
+    };
+    
+    await db.collection('leads').updateOne(
+      { _id: new ObjectId(id) },
+      { 
+        $push: { notes: note },
+        $set: { lastContactDate: new Date() }
+      }
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/crm/stats - Statistiques globales
+router.get('/stats', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const { startDate, endDate, assignedTo } = req.query;
+    
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+    
+    const matchStage = {
+      ...(Object.keys(dateFilter).length && { createdAt: dateFilter }),
+      ...(assignedTo && { assignedTo })
+    };
+    
+    const stats = await db.collection('leads').aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          totalLeads: { $sum: 1 },
+          wonLeads: {
+            $sum: { $cond: [{ $eq: ['$status', 'won'] }, 1, 0] }
+          },
+          totalRevenue: {
+            $sum: { $cond: [{ $eq: ['$status', 'won'] }, '$dealValue', 0] }
+          }
+        }
+      }
+    ]).toArray();
+    
+    const result = stats[0] || { totalLeads: 0, wonLeads: 0, totalRevenue: 0 };
+    result.conversionRate = result.totalLeads > 0 
+      ? ((result.wonLeads / result.totalLeads) * 100).toFixed(1)
+      : 0;
+    
+    res.json({ success: true, stats: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper: Assigner agent selon plateforme
+function assignAgent(platform) {
+  return platform === 'meta' ? 'marine' : 'denis';
+}
+
+// Helper: Notification nouveau lead (Slack/Email)
+async function notifyNewLead(lead) {
+  // Intégration Slack webhook ou email Brevo
+  console.log(`🔔 Nouveau lead ${lead.platform} assigné à ${lead.assignedTo}`);
+}
+
+// Helper: Ajouter X jours à une date
+function addDays(date, days) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+export default router;
+Composant React (LeadsDashboard.jsx)
+jsximport { useState, useEffect } from 'react';
+import axios from 'axios';
+import './LeadsDashboard.css';
+
+const LeadsDashboard = () => {
+  const [leads, setLeads] = useState([]);
+  const [stats, setStats] = useState({});
+  const [filters, setFilters] = useState({
+    platform: 'all',
+    assignedTo: 'all',
+    status: 'all'
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLeads();
+    fetchStats();
+  }, [filters]);
+
+  const fetchLeads = async () => {
+    try {
+      const params = {};
+      if (filters.platform !== 'all') params.platform = filters.platform;
+      if (filters.assignedTo !== 'all') params.assignedTo = filters.assignedTo;
+      if (filters.status !== 'all') params.status = filters.status;
+
+      const { data } = await axios.get('/api/crm/leads', { params });
+      setLeads(data.leads);
+      setLoading(false);
+    } catch (error) {
+      console.error('Erreur fetch leads:', error);
+      setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const { data } = await axios.get('/api/crm/stats');
+      setStats(data.stats);
+    } catch (error) {
+      console.error('Erreur fetch stats:', error);
+    }
+  };
+
+  const handleStatusChange = async (leadId, newStatus) => {
+    try {
+      await axios.patch(`/api/crm/leads/${leadId}`, { status: newStatus });
+      fetchLeads();
+      fetchStats();
+    } catch (error) {
+      console.error('Erreur update status:', error);
+    }
+  };
+
+  const statusColors = {
+    new: '#3b82f6',
+    contacted: '#8b5cf6',
+    qualified: '#f59e0b',
+    proposal_sent: '#10b981',
+    won: '#22c55e',
+    lost: '#ef4444'
+  };
+
+  if (loading) return <div className="loading">Chargement...</div>;
+
+  return (
+    <div className="leads-dashboard">
+      {/* Stats Cards */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <h3>Total Leads</h3>
+          <p className="stat-number">{stats.totalLeads || 0}</p>
+        </div>
+        <div className="stat-card">
+          <h3>Convertis</h3>
+          <p className="stat-number">{stats.wonLeads || 0}</p>
+        </div>
+        <div className="stat-card">
+          <h3>Taux conversion</h3>
+          <p className="stat-number">{stats.conversionRate || 0}%</p>
+        </div>
+        <div className="stat-card">
+          <h3>Revenue total</h3>
+          <p className="stat-number">{stats.totalRevenue || 0}€</p>
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div className="filters-bar">
+        <select 
+          value={filters.platform}
+          onChange={(e) => setFilters({...filters, platform: e.target.value})}
+        >
+          <option value="all">Toutes plateformes</option>
+          <option value="youtube">YouTube</option>
+          <option value="meta">Meta</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+
+        <select 
+          value={filters.assignedTo}
+          onChange={(e) => setFilters({...filters, assignedTo: e.target.value})}
+        >
+          <option value="all">Tous agents</option>
+          <option value="denis">Denis</option>
+          <option value="marine">Marine</option>
+        </select>
+
+        <select 
+          value={filters.status}
+          onChange={(e) => setFilters({...filters, status: e.target.value})}
+        >
+          <option value="all">Tous statuts</option>
+          <option value="new">Nouveau</option>
+          <option value="contacted">Contacté</option>
+          <option value="qualified">Qualifié</option>
+          <option value="proposal_sent">Proposition envoyée</option>
+          <option value="won">Gagné</option>
+          <option value="lost">Perdu</option>
+        </select>
+      </div>
+
+      {/* Tableau leads */}
+      <div className="leads-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Artiste</th>
+              <th>Plateforme</th>
+              <th>Budget</th>
+              <th>Assigné à</th>
+              <th>Statut</th>
+              <th>Créé le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leads.map(lead => (
+              <tr key={lead._id}>
+                <td className="artist-cell">
+                  <strong>{lead.artistName}</strong>
+                  <span className="email">{lead.email}</span>
+                </td>
+                <td>
+                  <span className={`platform-badge ${lead.platform}`}>
+                    {lead.platform.toUpperCase()}
+                  </span>
+                </td>
+                <td>{lead.budget}€</td>
+                <td>
+                  <span className="agent-badge">{lead.assignedTo}</span>
+                </td>
+                <td>
+                  <select
+                    value={lead.status}
+                    onChange={(e) => handleStatusChange(lead._id, e.target.value)}
+                    style={{ backgroundColor: statusColors[lead.status] }}
+                    className="status-select"
+                  >
+                    <option value="new">Nouveau</option>
+                    <option value="contacted">Contacté</option>
+                    <option value="qualified">Qualifié</option>
+                    <option value="proposal_sent">Proposition envoyée</option>
+                    <option value="won">Gagné</option>
+                    <option value="lost">Perdu</option>
+                  </select>
+                </td>
+                <td>{new Date(lead.createdAt).toLocaleDateString('fr-FR')}</td>
+                <td>
+                  <button 
+                    className="btn-icon"
+                    onClick={() => window.location.href = `/admin/lead/${lead._id}`}
+                  >
+                    👁️ Voir
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default LeadsDashboard;
+
+8. Prochaines étapes recommandées
+
+Valider l'architecture : Choix final stack (n8n+MongoDB hybride ?)
+Setup MongoDB : Créer collections + index
+Modifier simulator : POST vers /api/crm/leads au lieu du webhook actuel
+Développer MVP : Routes API + interface admin basique
+Tests : Simuler des leads, vérifier auto-assignment
+Itérer : Ajouter fonctionnalités phase 2-3-4
+
+Veux-tu que je génère :
+
+Le workflow n8n complet en JSON prêt à importer ?
+Les composants React manquants (Kanban, détail lead, charts) ?
+Le setup MongoDB avec schémas Mongoose ?
+Les templates d'emails Brevo pour follow-up auto ?
+
+Dis-moi quelle partie tu veux approfondir en priorité ! 🚀RéessayerDAJe veux que tu me fasses une cahier des charges pour le codage que je vais demander à claude code. Niveau sécurité andards de sécurité informatique dans le secteur bancaire incluent des normes comme PCI DSS pour la sécurité des paiements, le RGPD pour la protection des données personnelles, le DORA européen pour la résilience numérique, et des cadres de gestion comme l'ISO 27001Cahier des Charges CRM MDMC Music Ads
+1. CONTEXTE & OBJECTIFS
+1.1 Présentation du projet
+Nom : MDMC CRM - Customer Relationship Management pour agence marketing musical
+Client : MDMC Music Ads (Denis - Digital Marketing Manager)
+Objectif principal : Centraliser la gestion des leads, campagnes et performance commerciale pour une équipe de 2 agents (Denis + Marine)
+1.2 Besoins métier
+
+Tracking des leads par plateforme (YouTube Ads, Meta Ads, TikTok Ads)
+Auto-assignment des leads par plateforme (YouTube/TikTok → Denis, Meta → Marine)
+Gestion du pipeline de vente (statuts : new → contacted → qualified → proposal_sent → won/lost)
+Suivi des campagnes actives post-vente
+Analytics en temps réel (conversion rate, revenue, KPIs par agent)
+Automatisation des follow-ups et alertes
+
+1.3 Utilisateurs cibles
+
+Denis : Gère YouTube Ads & TikTok Ads, admin système
+Marine : Gère Meta Ads (Facebook/Instagram)
+Accès : Interface admin protégée par JWT (déjà existante dans AdminPanel.jsx)
+
+
+2. ARCHITECTURE TECHNIQUE
+2.1 Stack technologique
+Frontend (existant à étendre)
+
+React 18+ avec Vite
+React Router v6 (déjà configuré)
+Axios pour API calls
+React Helmet Async pour SEO
+i18next pour internationalisation (français prioritaire)
+
+Backend (à créer)
+
+Node.js 20+ avec Express.js
+MongoDB 7+ (base de données principale)
+Mongoose pour ODM
+Railway pour hosting (déjà utilisé)
+
+Automatisation
+
+n8n pour workflows (déjà maîtrisé par le client)
+Webhooks pour intégration simulator/form → CRM
+Cron jobs pour alertes et rapports
+
+APIs tierces
+
+Brevo (ex-Sendinblue) pour emails transactionnels
+Slack Webhooks pour notifications temps réel (optionnel)
+Google Ads API + Meta Ads API pour sync performance (Phase 4)
+
+2.2 Architecture globale
+┌─────────────────┐
+│   Frontend      │
+│   React + Vite  │
+│   Port 5173     │
+└────────┬────────┘
+         │ HTTPS
+         ▼
+┌─────────────────┐
+│   Backend API   │
+│   Express.js    │
+│   Port 3001     │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌──────────┐
+│MongoDB │ │   n8n    │
+│Railway │ │Workflows │
+└────────┘ └──────────┘
+2.3 Environnements
+
+Développement : Local (localhost:5173 + localhost:3001)
+Production : Railway (backend) + Vercel/Netlify (frontend)
+
+
+3. SÉCURITÉ (STANDARDS BANCAIRES)
+3.1 Conformité réglementaire
+RGPD (Protection des données personnelles)
+
+Consentement explicite pour collecte de données (déjà présent dans CookieBanner)
+Droit à l'effacement : API endpoint /api/crm/leads/:id/gdpr-delete
+Droit d'accès : Export des données client sur demande
+Durée de conservation : 3 ans max pour leads non convertis, 10 ans pour clients (obligations comptables)
+Registre des traitements : Documentation des flux de données
+DPO : Contact RGPD dans mentions légales
+
+PCI DSS (Sécurité des paiements)
+
+⚠️ AUCUNE donnée bancaire stockée dans le CRM
+Paiements via Stripe uniquement (PCI compliant)
+Transmission sécurisée TLS 1.3 minimum
+Logs des transactions sans CVV ni numéros complets
+
+ISO 27001 (Gestion sécurité de l'information)
+
+Politique de mots de passe : min 12 caractères, rotation 90 jours
+Principe du moindre privilège : rôles admin/agent différenciés
+Gestion des incidents : logs centralisés avec alerting
+Audit trail : toutes modifications de leads tracées
+
+DORA (Digital Operational Resilience Act - UE)
+
+Plan de continuité : backups MongoDB quotidiens (retention 30 jours)
+Tests de résilience : simulation panne serveur trimestrielle
+Gestion des tiers : contrats DPA avec Railway, MongoDB Atlas, Brevo
+Reporting incidents : procédure escalade sous 24h
+
+3.2 Authentification & Autorisation
+JWT (JSON Web Tokens)
+javascript// Structure JWT
+{
+  "iss": "mdmc-crm",
+  "sub": "user_id",
+  "role": "admin" | "agent",
+  "agent": "denis" | "marine",
+  "exp": timestamp + 8h,
+  "iat": timestamp
+}
+Exigences
+
+Signature : HMAC-SHA256 avec clé 256 bits (variable env JWT_SECRET)
+Expiration : 8 heures (renouvellement auto via refresh token)
+Storage : httpOnly cookie + localStorage (fallback)
+Refresh token : rotation après chaque utilisation, stocké en DB avec hash bcrypt
+
+Rôles & Permissions
+javascriptconst PERMISSIONS = {
+  admin: ['*'], // Denis - accès total
+  agent: [
+    'leads:read:own',      // Lire ses propres leads
+    'leads:update:own',    // Modifier ses propres leads
+    'leads:create',        // Créer des leads
+    'campaigns:read:own',  // Voir ses campagnes
+    'notes:create:own',    // Ajouter notes sur ses leads
+    'stats:read:own'       // Stats personnelles uniquement
+  ]
+};
+Middleware de vérification
+javascript// backend/middleware/auth.js
+export const requireAuth = (req, res, next) => {
+  const token = req.cookies.auth_token || req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Vérifier expiration
+    if (decoded.exp < Date.now() / 1000) {
+      return res.status(401).json({ error: 'Token expiré' });
+    }
+    
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Token invalide' });
+  }
+};
+
+export const requirePermission = (permission) => {
+  return (req, res, next) => {
+    const userPermissions = PERMISSIONS[req.user.role];
+    
+    if (!userPermissions.includes('*') && !userPermissions.includes(permission)) {
+      return res.status(403).json({ error: 'Permission refusée' });
+    }
+    
+    next();
+  };
+};
+3.3 Chiffrement des données
+En transit
+
+TLS 1.3 obligatoire (HTTPS partout)
+Certificate pinning pour API calls
+HSTS header : max-age=31536000; includeSubDomains; preload
+
+Au repos
+javascript// Données sensibles chiffrées en MongoDB
+import crypto from 'crypto';
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // 32 bytes
+const IV_LENGTH = 16;
+
+export function encrypt(text) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+export function decrypt(text) {
+  const parts = text.split(':');
+  const iv = Buffer.from(parts.shift(), 'hex');
+  const encrypted = Buffer.from(parts.join(':'), 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  let decrypted = decipher.update(encrypted);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+}
+
+// Application dans le schéma
+const leadSchema = new Schema({
+  email: {
+    type: String,
+    required: true,
+    set: encrypt,
+    get: decrypt
+  },
+  phone: {
+    type: String,
+    set: encrypt,
+    get: decrypt
+  }
+});
+Champs à chiffrer
+
+Email client
+Téléphone client
+Notes contenant infos sensibles (détection auto via regex : IBAN, CB, etc.)
+
+3.4 Protection contre les attaques
+OWASP Top 10
+
+Injection (SQL/NoSQL)
+
+javascript// ✅ BON : Utiliser Mongoose (paramétrisé par défaut)
+Lead.find({ email: userInput });
+
+// ❌ MAUVAIS : Concaténation manuelle
+db.collection('leads').find({ $where: `this.email == '${userInput}'` });
+
+Broken Authentication
+
+
+Rate limiting : 5 tentatives login max par IP/15min (express-rate-limit)
+Captcha après 3 échecs (hCaptcha)
+Notification email si login depuis nouvel appareil
+
+
+Sensitive Data Exposure
+
+
+.env JAMAIS commité (ajouté dans .gitignore)
+Secrets rotation tous les 90 jours
+Masquage données sensibles dans logs : email: "d****@example.com"
+
+
+XML External Entities (XXE)
+
+
+Désactivation parseurs XML (non utilisés)
+
+
+Broken Access Control
+
+
+Vérification ownership sur chaque requête :
+
+javascript// Exemple : agent ne peut voir que SES leads
+router.get('/leads/:id', requireAuth, async (req, res) => {
+  const lead = await Lead.findById(req.params.id);
+  
+  if (req.user.role !== 'admin' && lead.assignedTo !== req.user.agent) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  
+  res.json({ lead });
+});
+
+Security Misconfiguration
+
+javascript// helmet.js - Headers sécurisés
+import helmet from 'helmet';
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["RéessayerDAnon Denis gere YouTube et Spotify et Marine gere Meta et TikTokCahier des Charges CRM MDMC Music Ads
+1. CONTEXTE & OBJECTIFS
+1.1 Présentation du projet
+Nom : MDMC CRM - Customer Relationship Management pour agence marketing musical
+Client : MDMC Music Ads (Denis - Digital Marketing Manager)
+Objectif principal : Centraliser la gestion des leads, campagnes et performance commerciale pour une équipe de 2 agents (Denis + Marine)
+1.2 Besoins métier
+
+Tracking des leads par plateforme (YouTube Ads, Meta Ads, TikTok Ads)
+Auto-assignment des leads par plateforme :
+
+YouTube Ads → Denis
+Spotify Ads → Denis
+Meta Ads (Facebook/Instagram) → Marine
+TikTok Ads → Marine
+
+
+Gestion du pipeline de vente (statuts : new → contacted → qualified → proposal_sent → won/lost)
+Suivi des campagnes actives post-vente
+Analytics en temps réel (conversion rate, revenue, KPIs par agent)
+Automatisation des follow-ups et alertes
+
+1.3 Utilisateurs cibles
+
+Denis : Gère YouTube Ads & Spotify Ads, admin système
+Marine : Gère Meta Ads (Facebook/Instagram) & TikTok Ads
+Accès : Interface admin protégée par JWT (déjà existante dans AdminPanel.jsx)
+
+
+2. ARCHITECTURE TECHNIQUE
+2.1 Stack technologique
+Frontend (existant à étendre)
+
+React 18+ avec Vite
+React Router v6 (déjà configuré)
+Axios pour API calls
+React Helmet Async pour SEO
+i18next pour internationalisation (français prioritaire)
+
+Backend (à créer)
+
+Node.js 20+ avec Express.js
+MongoDB 7+ (base de données principale)
+Mongoose pour ODM
+Railway pour hosting (déjà utilisé)
+
+Automatisation
+
+n8n pour workflows (déjà maîtrisé par le client)
+Webhooks pour intégration simulator/form → CRM
+Cron jobs pour alertes et rapports
+
+APIs tierces
+
+Brevo (ex-Sendinblue) pour emails transactionnels
+Slack Webhooks pour notifications temps réel (optionnel)
+Google Ads API + Meta Ads API pour sync performance (Phase 4)
+
+2.2 Architecture globale
+┌─────────────────┐
+│   Frontend      │
+│   React + Vite  │
+│   Port 5173     │
+└────────┬────────┘
+         │ HTTPS
+         ▼
+┌─────────────────┐
+│   Backend API   │
+│   Express.js    │
+│   Port 3001     │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌──────────┐
+│MongoDB │ │   n8n    │
+│Railway │ │Workflows │
+└────────┘ └──────────┘
+2.3 Environnements
+
+Développement : Local (localhost:5173 + localhost:3001)
+Production : Railway (backend) + Vercel/Netlify (frontend)
+
+
+3. SÉCURITÉ (STANDARDS BANCAIRES)
+3.1 Conformité réglementaire
+RGPD (Protection des données personnelles)
+
+Consentement explicite pour collecte de données (déjà présent dans CookieBanner)
+Droit à l'effacement : API endpoint /api/crm/leads/:id/gdpr-delete
+Droit d'accès : Export des données client sur demande
+Durée de conservation : 3 ans max pour leads non convertis, 10 ans pour clients (obligations comptables)
+Registre des traitements : Documentation des flux de données
+DPO : Contact RGPD dans mentions légales
+
+PCI DSS (Sécurité des paiements)
+
+⚠️ AUCUNE donnée bancaire stockée dans le CRM
+Paiements via Stripe uniquement (PCI compliant)
+Transmission sécurisée TLS 1.3 minimum
+Logs des transactions sans CVV ni numéros complets
+
+ISO 27001 (Gestion sécurité de l'information)
+
+Politique de mots de passe : min 12 caractères, rotation 90 jours
+Principe du moindre privilège : rôles admin/agent différenciés
+Gestion des incidents : logs centralisés avec alerting
+Audit trail : toutes modifications de leads tracées
+
+DORA (Digital Operational Resilience Act - UE)
+
+Plan de continuité : backups MongoDB quotidiens (retention 30 jours)
+Tests de résilience : simulation panne serveur trimestrielle
+Gestion des tiers : contrats DPA avec Railway, MongoDB Atlas, Brevo
+Reporting incidents : procédure escalade sous 24h
+
+3.2 Authentification & Autorisation
+JWT (JSON Web Tokens)
+javascript// Structure JWT
+{
+  "iss": "mdmc-crm",
+  "sub": "user_id",
+  "role": "admin" | "agent",
+  "agent": "denis" | "marine",
+  "exp": timestamp + 8h,
+  "iat": timestamp
+}
+Exigences
+
+Signature : HMAC-SHA256 avec clé 256 bits (variable env JWT_SECRET)
+Expiration : 8 heures (renouvellement auto via refresh token)
+Storage : httpOnly cookie + localStorage (fallback)
+Refresh token : rotation après chaque utilisation, stocké en DB avec hash bcrypt
+
+Rôles & Permissions
+javascriptconst PERMISSIONS = {
+  admin: ['*'], // Denis - accès total
+  agent: [
+    'leads:read:own',      // Lire ses propres leads
+    'leads:update:own',    // Modifier ses propres leads
+    'leads:create',        // Créer des leads
+    'campaigns:read:own',  // Voir ses campagnes
+    'notes:create:own',    // Ajouter notes sur ses leads
+    'stats:read:own'       // Stats personnelles uniquement
+  ]
+};
+Middleware de vérification
+javascript// backend/middleware/auth.js
+export const requireAuth = (req, res, next) => {
+  const token = req.cookies.auth_token || req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Vérifier expiration
+    if (decoded.exp < Date.now() / 1000) {
+      return res.status(401).json({ error: 'Token expiré' });
+    }
+    
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Token invalide' });
+  }
+};
+
+export const requirePermission = (permission) => {
+  return (req, res, next) => {
+    const userPermissions = PERMISSIONS[req.user.role];
+    
+    if (!userPermissions.includes('*') && !userPermissions.includes(permission)) {
+      return res.status(403).json({ error: 'Permission refusée' });
+    }
+    
+    next();
+  };
+};
+3.3 Chiffrement des données
+En transit
+
+TLS 1.3 obligatoire (HTTPS partout)
+Certificate pinning pour API calls
+HSTS header : max-age=31536000; includeSubDomains; preload
+
+Au repos
+javascript// Données sensibles chiffrées en MongoDB
+import crypto from 'crypto';
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // 32 bytes
+const IV_LENGTH = 16;
+
+export function encrypt(text) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+export function decrypt(text) {
+  const parts = text.split(':');
+  const iv = Buffer.from(parts.shift(), 'hex');
+  const encrypted = Buffer.from(parts.join(':'), 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
+  let decrypted = decipher.update(encrypted);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+}
+
+// Application dans le schéma
+const leadSchema = new Schema({
+  email: {
+    type: String,
+    required: true,
+    set: encrypt,
+    get: decrypt
+  },
+  phone: {
+    type: String,
+    set: encrypt,
+    get: decrypt
+  }
+});
+Champs à chiffrer
+
+Email client
+Téléphone client
+Notes contenant infos sensibles (détection auto via regex : IBAN, CB, etc.)
+
+3.4 Protection contre les attaques
+OWASP Top 10
+
+Injection (SQL/NoSQL)
+
+javascript// ✅ BON : Utiliser Mongoose (paramétrisé par défaut)
+Lead.find({ email: userInput });
+
+// ❌ MAUVAIS : Concaténation manuelle
+db.collection('leads').find({ $where: `this.email == '${userInput}'` });
+
+Broken Authentication
+
+
+Rate limiting : 5 tentatives login max par IP/15min (express-rate-limit)
+Captcha après 3 échecs (hCaptcha)
+Notification email si login depuis nouvel appareil
+
+
+Sensitive Data Exposure
+
+
+.env JAMAIS commité (ajouté dans .gitignore)
+Secrets rotation tous les 90 jours
+Masquage données sensibles dans logs : email: "d****@example.com"
+
+
+XML External Entities (XXE)
+
+
+Désactivation parseurs XML (non utilisés)
+
+
+Broken Access Control
+
+
+Vérification ownership sur chaque requête :
+
+javascript// Exemple : agent ne peut voir que SES leads
+router.get('/leads/:id', requireAuth, async (req, res) => {
+  const lead = await Lead.findById(req.params.id);
+  
+  if (req.user.role !== 'admin' && lead.assignedTo !== req.user.agent) {
+    return res.status(403).json({ error: 'Accès refusé' });
+  }
+  
+  res.json({ lead });
+});
+
+Security Misconfiguration
+
+javascript// helmet.js - Headers sécurisés
+import helmet from 'helmet';
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.mdmcmusicads.com"]
+    }
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+
+Cross-Site Scripting (XSS)
+
+javascript// Sanitization des inputs
+import DOMPurify from 'isomorphic-dompurify';
+
+// Côté backend
+import validator from 'validator';
+
+router.post('/leads', async (req, res) => {
+  const sanitized = {
+    artistName: validator.escape(req.body.artistName),
+    email: validator.normalizeEmail(req.body.email),
+    message: DOMPurify.sanitize(req.body.message)
+  };
+  
+  // Validation
+  if (!validator.isEmail(sanitized.email)) {
+    return res.status(400).json({ error: 'Email invalide' });
+  }
+  
+  // Suite du traitement...
+});
+
+Insecure Deserialization
+
+
+Utilisation de JSON uniquement (pas de pickle/YAML)
+Validation stricte des payloads entrants
+
+
+Using Components with Known Vulnerabilities
+
+
+npm audit automatisé en CI/CD
+Dependabot activé sur GitHub
+Mise à jour mensuelle des dépendances
+
+
+Insufficient Logging & Monitoring
+
+javascript// Winston pour logs structurés
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
+
+// Log toutes les actions sensibles
+router.patch('/leads/:id', requireAuth, async (req, res) => {
+  logger.info('Lead update attempt', {
+    userId: req.user.sub,
+    leadId: req.params.id,
+    changes: Object.keys(req.body),
+    ip: req.ip,
+    timestamp: new Date().toISOString()
+  });
+  
+  // Suite du traitement...
+});
+Rate Limiting
+javascriptimport rateLimit from 'express-rate-limit';
+
+// Limite globale API
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requêtes max
+  message: 'Trop de requêtes, réessayez dans 15 minutes'
+});
+
+// Limite stricte login
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  skipSuccessfulRequests: true
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', loginLimiter);
+CORS
+javascriptimport cors from 'cors';
+
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://www.mdmcmusicads.com', 'https://mdmcmusicads.com']
+    : 'http://localhost:5173',
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+3.5 Audit & Conformité
+Audit Trail
+javascript// Collection MongoDB : audit_logs
+const auditSchema = new Schema({
+  userId: { type: String, required: true },
+  action: { type: String, required: true }, // 'CREATE', 'READ', 'UPDATE', 'DELETE'
+  resource: { type: String, required: true }, // 'lead', 'campaign', 'user'
+  resourceId: { type: String },
+  changes: { type: Object }, // Avant/après pour UPDATE
+  ip: { type: String },
+  userAgent: { type: String },
+  timestamp: { type: Date, default: Date.now },
+  success: { type: Boolean, default: true }
+});
+
+// Middleware d'audit automatique
+export const auditMiddleware = (action, resource) => {
+  return async (req, res, next) => {
+    const originalSend = res.send;
+    
+    res.send = function(data) {
+      // Logger l'action après exécution
+      AuditLog.create({
+        userId: req.user?.sub,
+        action,
+        resource,
+        resourceId: req.params.id,
+        changes: action === 'UPDATE' ? req.body : null,
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+        success: res.statusCode < 400
+      });
+      
+      originalSend.call(this, data);
+    };
+    
+    next();
+  };
+};
+
+// Utilisation
+router.patch('/leads/:id', 
+  requireAuth, 
+  auditMiddleware('UPDATE', 'lead'),
+  async (req, res) => {
+    // Traitement...
+  }
+);
+Reporting conformité
+
+Export mensuel des logs d'accès (conservés 1 an)
+Dashboard conformité RGPD (demandes d'effacement, exports)
+Alertes automatiques si patterns suspects (ex: 100+ leads lus en 1h par un agent)
+
+
+4. MODÈLE DE DONNÉES
+4.1 Collection : leads
+javascriptimport mongoose from 'mongoose';
+
+const leadSchema = new mongoose.Schema({
+  // Identification
+  source: {
+    type: String,
+    enum: ['simulator', 'contact_form', 'calendly', 'manual'],
+    required: true
+  },
+  
+  // Plateforme et assignment automatique
+  platform: {
+    type: String,
+    enum: ['youtube', 'spotify', 'meta', 'tiktok'],
+    required: true
+  },
+  
+  assignedTo: {
+    type: String,
+    enum: ['denis', 'marine'],
+    required: true,
+    // Auto-assignment via pre-save hook (voir ci-dessous)
+  },
+  
+  status: {
+    type: String,
+    enum: ['new', 'contacted', 'qualified', 'proposal_sent', 'won', 'lost'],
+    default: 'new',
+    index: true
+  },
+  
+  // Informations client (chiffrées)
+  artistName: {
+    type: String,
+    required: true
+  },
+  
+  email: {
+    type: String,
+    required: true,
+    lowercase: true,
+    validate: {
+      validator: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      message: 'Email invalide'
+    },
+    set: encrypt, // Fonction de chiffrement
+    get: decrypt  // Fonction de déchiffrement
+  },
+  
+  phone: {
+    type: String,
+    set: encrypt,
+    get: decrypt
+  },
+  
+  country: {
+    type: String,
+    default: 'FR'
+  },
+  
+  // Données campagne souhaitée
+  budget: {
+    type: Number,
+    required: true,
+    min: 500
+  },
+  
+  campaignType: {
+    type: String,
+    enum: ['awareness', 'engagement', 'conversion', 'traffic']
+  },
+  
+  estimatedViews: {
+    type: Number
+  },
+  
+  estimatedCPV: {
+    type: Number
+  },
+  
+  estimatedReach: {
+    type: Number
+  },
+  
+  // Tracking commercial
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
+  
+  lastContactDate: {
+    type: Date
+  },
+  
+  nextFollowUp: {
+    type: Date,
+    index: true
+  },
+  
+  followUpCount: {
+    type: Number,
+    default: 0
+  },
+  
+  wonDate: {
+    type: Date
+  },
+  
+  lostDate: {
+    type: Date
+  },
+  
+  lostReason: {
+    type: String,
+    enum: ['budget', 'timing', 'competitor', 'no_response', 'quality', 'other']
+  },
+  
+  // Revenue
+  dealValue: {
+    type: Number,
+    min: 0
+  },
+  
+  commission: {
+    type: Number,
+    min: 0
+  },
+  
+  // Notes & interactions
+  notes: [{
+    author: {
+      type: String,
+      enum: ['denis', 'marine'],
+      required: true
+    },
+    content: {
+      type: String,
+      required: true,
+      maxlength: 2000
+    },
+    date: {
+      type: Date,
+      default: Date.now
+    },
+    type: {
+      type: String,
+      enum: ['email', 'call', 'meeting', 'note'],
+      default: 'note'
+    }
+  }],
+  
+  // Métadonnées
+  tags: [{
+    type: String
+  }],
+  
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'urgent'],
+    default: 'medium'
+  },
+  
+  // RGPD
+  consentDate: {
+    type: Date,
+    default: Date.now
+  },
+  
+  gdprDeletedAt: {
+    type: Date
+  }
+}, {
+  timestamps: true,
+  toJSON: { getters: true }, // Déchiffrer automatiquement en JSON
+  toObject: { getters: true }
+});
+
+// Index composites pour performance
+leadSchema.index({ assignedTo: 1, status: 1 });
+leadSchema.index({ platform: 1, createdAt: -1 });
+leadSchema.index({ nextFollowUp: 1, status: 1 });
+
+// Hook pre-save : Auto-assignment par plateforme
+leadSchema.pre('save', function(next) {
+  if (this.isNew && !this.assignedTo) {
+    // YouTube & Spotify → Denis
+    // Meta & TikTok → Marine
+    if (this.platform === 'youtube' || this.platform === 'spotify') {
+      this.assignedTo = 'denis';
+    } else if (this.platform === 'meta' || this.platform === 'tiktok') {
+      this.assignedTo = 'marine';
+    }
+  }
+  next();
+});
+
+// Hook pre-save : Calcul auto de nextFollowUp si status change
+leadSchema.pre('save', function(next) {
+  if (this.isModified('status')) {
+    const followUpDelays = {
+      new: 2,           // 2 jours
+      contacted: 5,     // 5 jours
+      qualified: 3,     // 3 jours
+      proposal_sent: 7  // 7 jours
+    };
+    
+    const daysToAdd = followUpDelays[this.status] || 0;
+    if (daysToAdd > 0) {
+      this.nextFollowUp = new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000);
+    }
+  }
+  next();
+});
+
+// Méthodes d'instance
+leadSchema.methods.addNote = function(author, content, type = 'note') {
+  this.notes.push({ author, content, type, date: new Date() });
+  this.lastContactDate = new Date();
+  return this.save();
+};
+
+leadSchema.methods.markAsWon = function(dealValue) {
+  this.status = 'won';
+  this.wonDate = new Date();
+  this.dealValue = dealValue;
+  this.commission = dealValue * 0.15; // 15% de commission
+  return this.save();
+};
+
+leadSchema.methods.markAsLost = function(reason) {
+  this.status = 'lost';
+  this.lostDate = new Date();
+  this.lostReason = reason;
+  return this.save();
+};
+
+// Méthodes statiques
+leadSchema.statics.getStatsByAgent = async function(agent, startDate, endDate) {
+  const match = { assignedTo: agent };
+  if (startDate || endDate) {
+    match.createdAt = {};
+    if (startDate) match.createdAt.$gte = new Date(startDate);
+    if (endDate) match.createdAt.$lte = new Date(endDate);
+  }
+  
+  return this.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        totalLeads: { $sum: 1 },
+        wonLeads: {
+          $sum: { $cond: [{ $eq: ['$status', 'won'] }, 1, 0] }
+        },
+        lostLeads: {
+          $sum: { $cond: [{ $eq: ['$status', 'lost'] }, 1, 0] }
+        },
+        totalRevenue: {
+          $sum: { $cond: [{ $eq: ['$status', 'won'] }, '$dealValue', 0] }
+        },
+        totalCommission: {
+          $sum: { $cond: [{ $eq: ['$status', 'won'] }, '$commission', 0] }
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        totalLeads: 1,
+        wonLeads: 1,
+        lostLeads: 1,
+        totalRevenue: 1,
+        totalCommission: 1,
+        conversionRate: {
+          $multiply: [
+            { $divide: ['$wonLeads', '$totalLeads'] },
+            100
+          ]
+        }
+      }
+    }
+  ]);
+};
+
+export default mongoose.model('Lead', leadSchema);
+4.2 Collection : campaigns
+javascriptconst campaignSchema = new mongoose.Schema({
+  leadId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Lead',
+    required: true
+  },
+  
+  platform: {
+    type: String,
+    enum: ['youtube', 'spotify', 'meta', 'tiktok'],
+    required: true
+  },
+  
+  managedBy: {
+    type: String,
+    enum: ['denis', 'marine'],
+    required: true
+  },
+  
+  // Budget
+  budget: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  
+  spent: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  
+  status: {
+    type: String,
+    enum: ['active', 'paused', 'completed', 'cancelled'],
+    default: 'active'
+  },
+  
+  // KPIs (mis à jour via sync API)
+  metrics: {
+    impressions: { type: Number, default: 0 },
+    views: { type: Number, default: 0 },
+    clicks: { type: Number, default: 0 },
+    conversions: { type: Number, default: 0 },
+    ctr: { type: Number, default: 0 }, // Click-through rate
+    cpv: { type: Number, default: 0 }, // Cost per view
+    cpc: { type: Number, default: 0 }, // Cost per click
+    reach: { type: Number, default: 0 },
+    engagement: { type: Number, default: 0 }
+  },
+  
+  // Timeline
+  startDate: {
+    type: Date,
+    required: true
+  },
+  
+  endDate: {
+    type: Date
+  },
+  
+  lastSyncDate: {
+    type: Date
+  },
+  
+  // Satisfaction client
+  clientFeedback: {
+    type: String,
+    maxlength: 1000
+  },
+  
+  nps: {
+    type: Number,
+    min: 0,
+    max: 10
+  },
+  
+  // IDs externes pour sync API
+  externalCampaignId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  
+  externalAdAccountId: {
+    type: String
+  }
+}, {
+  timestamps: true
+});
+
+// Index
+campaignSchema.index({ managedBy: 1, status: 1 });
+campaignSchema.index({ platform: 1, status: 1 });
+campaignSchema.index({ leadId: 1 });
+
+// Calcul ROI
+campaignSchema.virtual('roi').get(function() {
+  if (!this.spent || this.spent === 0) return 0;
+  const revenue = this.leadId?.dealValue || 0;
+  return ((revenue - this.spent) / this.spent) * 100;
+});
+
+export default mongoose.model('Campaign', campaignSchema);
+4.3 Collection : users (agents)
+javascriptconst userSchema = new mongoose.Schema({
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true
+  },
+  
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true
+  },
+  
+  password: {
+    type: String,
+    required: true,
+    select: false // Ne jamais retourner le hash par défaut
+  },
+  
+  role: {
+    type: String,
+    enum: ['admin', 'agent'],
+    default: 'agent'
+  },
+  
+  agent: {
+    type: String,
+    enum: ['denis', 'marine'],
+    required: true
+  },
+  
+  firstName: {
+    type: String,
+    required: true
+  },
+  
+  lastName: {
+    type: String,
+    required: true
+  },
+  
+  // Sécurité
+  lastLogin: {
+    type: Date
+  },
+  
+  failedLoginAttempts: {
+    type: Number,
+    default: 0
+  },
+  
+  accountLocked: {
+    type: Boolean,
+    default: false
+  },
+  
+  refreshToken: {
+    type: String,
+    select: false
+  },
+  
+  passwordChangedAt: {
+    type: Date
+  },
+  
+  active: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true
+});
+
+// Hash password avant sauvegarde
+import bcrypt from 'bcrypt';
+
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  
+  this.password = await bcrypt.hash(this.password, 12);
+  this.passwordChangedAt = Date.now() - 1000; // -1s pour JWT timing
+  next();
+});
+
+// Méthode pour vérifier mot de passe
+userSchema.methods.correctPassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+export default mongoose.model('User', userSchema);
+4.4 Collection : audit_logs
+javascriptconst auditLogSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    required: true,
+    index: true
+  },
+  
+  action: {
+    type: String,
+    enum: ['CREATE', 'READ', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'],
+    required: true
+  },
+  
+  resource: {
+    type: String,
+    enum: ['lead', 'campaign', 'user', 'auth'],
+    required: true
+  },
+  
+  resourceId: {
+    type: String
+  },
+  
+  changes: {
+    before: { type: Object },
+    after: { type: Object }
+  },
+  
+  ip: {
+    type: String
+  },
+  
+  userAgent: {
+    type: String
+  },
+  
+  timestamp: {
+    type: Date,
+    default: Date.now,
+    index: true,
+    expires: 31536000 // TTL : 1 an (auto-suppression MongoDB)
+  },
+  
+  success: {
+    type: Boolean,
+    default: true
+  },
+  
+  errorMessage: {
+    type: String
+  }
+});
+
+// Index composites pour recherche rapide
+auditLogSchema.index({ userId: 1, timestamp: -1 });
+auditLogSchema.index({ resource: 1, action: 1, timestamp: -1 });
+
+export default mongoose.model('AuditLog', auditLogSchema);
+
+5. API ENDPOINTS
+5.1 Architecture REST
+Base URL : https://api.mdmcmusicads.com/api/v1 (production)
+Base URL : http://localhost:3001/api/v1 (développement)
+Format de réponse standardisé
+javascript// Succès
+{
+  "success": true,
+  "data": { ... },
+  "meta": {
+    "timestamp": "2025-01-15T10:30:00Z",
+    "requestId": "uuid-v4"
+  }
+}
+
+// Erreur
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Email invalide",
+    "details": {
+      "field": "email",
+      "received": "notanemail"
+    }
+  },
+  "meta": {
+    "timestamp": "2025-01-15T10:30:00Z",
+    "requestId": "uuid-v4"
+  }
+}
+5.2 Routes Authentication
+POST /api/v1/auth/login
+javascript// Request
+{
+  "email": "denis@mdmcmusicads.com",
+  "password": "SecurePassword123!"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "uuid-v4",
+    "user": {
+      "id": "user_id",
+      "username": "denis",
+      "role": "admin",
+      "agent": "denis",
+      "firstName": "Denis",
+      "lastName": "M."
+    },
+    "expiresIn": 28800 // 8 heures en secondes
+  }
+}
+
+// Codes erreur possibles
+// 401 : Identifiants invalides
+// 423 : Compte verrouillé (trop de tentatives)
+// 429 : Rate limit dépassé
+POST /api/v1/auth/refresh
+javascript// Request
+{
+  "refreshToken": "uuid-v4"
+}
+
+// Response : même structure que /login
+POST /api/v1/auth/logout
+javascript// Request : Header Authorization requis
+
+// Response
+{
+  "success": true,
+  "data": {
+    "message": "Déconnexion réussie"
+  }
+}
+POST /api/v1/auth/change-password
+javascript// Request
+{
+  "currentPassword": "OldPass123!",
+  "newPassword": "NewSecurePass456!",
+  "confirmPassword": "NewSecurePass456!"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "message": "Mot de passe mis à jour"
+  }
+}
+
+// Validation : min 12 caractères, 1 maj, 1 min, 1 chiffre, 1 spécial
+5.3 Routes Leads
+GET /api/v1/leads
+javascript// Query params
+?platform=youtube           // Filtre plateforme
+&assignedTo=denis          // Filtre agent
+&status=new                // Filtre statut
+&page=1                    // Pagination (défaut: 1)
+&limit=20                  // Items par page (défaut: 20, max: 100)
+&sortBy=createdAt          // Tri (défaut: createdAt)
+&sortOrder=desc            // Ordre (asc/desc)
+&search=artistName         // Recherche full-text
+
+// Response
+{
+  "success": true,
+  "data": {
+    "leads": [...],
+    "pagination": {
+      "total": 156,
+      "page": 1,
+      "limit": 20,
+      "pages": 8
+    }
+  }
+}
+
+// Permissions : agent ne voit que SES leads (assignedTo=self auto-appliqué)
+GET /api/v1/leads/:id
+javascript// Response
+{
+  "success": true,
+  "data": {
+    "lead": {
+      "_id": "...",
+      "artistName": "Artist Name",
+      "email": "artist@example.com", // Déchiffré
+      "platform": "youtube",
+      "assignedTo": "denis",
+      "status": "qualified",
+      "budget": 2000,
+      "notes": [...],
+      // ... tous les champs
+    }
+  }
+}
+
+// 403 si agent tente d'accéder au lead d'un autre agent
+// 404 si lead introuvable
+POST /api/v1/leads
+javascript// Request
+{
+  "source": "simulator",
+  "platform": "youtube",
+  "artistName": "New Artist",
+  "email": "artist@example.com",
+  "phone": "+33612345678",
+  "country": "FR",
+  "budget": 1500,
+  "campaignType": "awareness",
+  "estimatedViews": 100000,
+  "estimatedCPV": 0.03
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "leadId": "...",
+    "assignedTo": "denis", // Auto-assigné
+    "message": "Lead créé et assigné à Denis"
+  }
+}
+
+// Validation stricte :
+// - email format valide
+// - budget >= 500
+// - platform dans enum
+PATCH /api/v1/leads/:id
+javascript// Request (partial update)
+{
+  "status": "contacted",
+  "budget": 2500,
+  "priority": "high"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "lead": { ... } // Lead mis à jour
+  }
+}
+
+// Audit automatique de la modification
+DELETE /api/v1/leads/:id
+javascript// Soft delete (RGPD compliant)
+// Response
+{
+  "success": true,
+  "data": {
+    "message": "Lead supprimé (soft delete)",
+    "gdprDeletedAt": "2025-01-15T10:30:00Z"
+  }
+}
+
+// Champs email/phone/artistName remplacés par "[DELETED]"
+// Lead conservé pour analytics historiques
+POST /api/v1/leads/:id/notes
+javascript// Request
+{
+  "content": "Appel téléphonique passé, intéressé par campagne YouTube Q2",
+  "type": "call"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "note": {
+      "author": "denis",
+      "content": "...",
+      "type": "call",
+      "date": "2025-01-15T10:30:00Z"
+    }
+  }
+}
+POST /api/v1/leads/:id/won
+javascript// Request
+{
+  "dealValue": 3000,
+  "startDate": "2025-02-01"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "lead": { ... }, // Status = won
+    "campaign": { ... } // Campagne créée automatiquement
+  }
+}
+POST /api/v1/leads/:id/lost
+javascript// Request
+{
+  "reason": "budget"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "message": "Lead marqué comme perdu"
+  }
+}
+POST /api/v1/leads/:id/reassign
+javascript// Request
+{
+  "newAgent": "marine"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "message": "Lead réassigné à Marine"
+  }
+}
+
+// Permission : admin uniquement
+5.4 Routes Campaigns
+GET /api/v1/campaigns
+javascript// Query params similaires à /leads
+?managedBy=denis
+&platform=youtube
+&status=active
+
+// Response
+{
+  "success": true,
+  "data": {
+    "campaigns": [...],
+    "pagination": { ... }
+  }
+}
+GET /api/v1/campaigns/:id
+javascript// Response
+{
+  "success": true,
+  "data": {
+    "campaign": {
+      "_id": "...",
+      "leadId": { ... }, // Populated
+      "platform": "youtube",
+      "budget": 3000,
+      "spent": 1250,
+      "metrics": {
+        "views": 85000,
+        "clicks": 3200,
+        "ctr": 3.76,
+        "cpv": 0.015
+      },
+      "roi": 140.5 // Virtual field calculé
+    }
+  }
+}
+POST /api/v1/campaigns/:id/sync
+javascript// Déclenche sync manuel avec API Google/Meta Ads
+// Response
+{
+  "success": true,
+  "data": {
+    "message": "Synchronisation effectuée",
+    "updatedMetrics": {
+      "views": 85000,
+      "spent": 1250
+    },
+    "lastSyncDate": "2025-01-15T10:30:00Z"
+  }
+}
+PATCH /api/v1/campaigns/:id
+javascript// Request
+{
+  "status": "paused",
+  "clientFeedback": "Très satisfait des résultats"
+}
+
+// Response : campagne mise à jour
+5.5 Routes Stats & Analytics
+GET /api/v1/stats/overview
+javascript// Query params
+?startDate=2025-01-01
+&endDate=2025-01-31
+&agent=denis // Optionnel (admin peut voir tous)
+
+// Response
+{
+  "success": true,
+  "data": {
+    "totalLeads": 45,
+    "wonLeads": 12,
+    "lostLeads": 8,
+    "activeLeads": 25,
+    "conversionRate": 26.67,
+    "totalRevenue": 36000,
+    "totalCommission": 5400,
+    "averageDealValue": 3000,
+    "byPlatform": {
+      "youtube": { leads: 20, won: 6, revenue: 18000 },
+      "spotify": { leads: 5, won: 2, revenue: 6000 },
+      "meta": { leads: 12, won: 3, revenue: 9000 },
+      "tiktok": { leads: 8, won: 1, revenue: 3000 }
+    },
+    "byStatus": {
+      "new": 10,
+      "contacted": 8,
+      "qualified": 5,
+      "proposal_sent": 2,
+      "won": 12,
+      "lost": 8
+    }
+  }
+}
+GET /api/v1/stats/performance
+javascript// Performance comparée Denis vs Marine
+// Response
+{
+  "success": true,
+  "data": {
+    "denis": {
+      "totalLeads": 25,
+      "wonLeads": 8,
+      "conversionRate": 32,
+      "revenue": 24000,
+      "averageResponseTime": "4.2 heures"
+    },
+    "marine": {
+      "totalLeads": 20,
+      "wonLeads": 4,
+      "conversionRate": 20,
+      "revenue": 12000,
+      "averageResponseTime": "6.1 heures"
+    }
+  }
+}
+GET /api/v1/stats/funnel
+javascript// Pipeline de conversion
+// Response
+{
+  "success": true,
+  "data": {
+    "funnel": [
+      { stage: "new", count: 100, percentage: 100 },
+      { stage: "contacted", count: 75, percentage: 75 },
+      { stage: "qualified", count: 45, percentage: 45 },
+      { stage: "proposal_sent", count: 20, percentage: 20 },
+      { stage: "won", count: 12, percentage: 12 }
+    ],
+    "dropoffRates": {
+      "new_to_contacted": 25,
+      "contacted_to_qualified": 40,
+      "qualified_to_proposal": 55.56,
+      "proposal_to_won": 40
+    }
+  }
+}
+GET /api/v1/stats/forecast
+javascript// Prévisions basées sur historique
+// Response
+{
+  "success": true,
+  "data": {
+    "nextMonth": {
+      "estimatedLeads": 52,
+      "estimatedWon": 14,
+      "estimatedRevenue": 42000
+    },
+    "nextQuarter": {
+      "estimatedLeads": 150,
+      "estimatedWon": 40,
+      "estimatedRevenue": 120000
+    },
+    "confidence": "medium" // low/medium/high
+  }
+}
+5.6 Routes Admin (admin uniquement)
+GET /api/v1/admin/users
+javascript// Liste tous les utilisateurs
+// Response
+{
+  "success": true,
+  "data": {
+    "users": [
+      {
+        "_id": "...",
+        "username": "denis",
+        "role": "admin",
+        "agent": "denis",
+        "lastLogin": "2025-01-15T09:00:00Z",
+        "active": true
+      },
+      {
+        "_id": "...",
+        "username": "marine",
+        "role": "agent",
+        "agent": "marine",
+        "lastLogin": "2025-01-14T16:30:00Z",
+        "active": true
+      }
+    ]
+  }
+}
+POST /api/v1/admin/users
+javascript// Créer un nouvel utilisateur
+// Request
+{
+  "username": "newagent",
+  "email": "new@mdmcmusicads.com",
+  "password": "TempPassword123!",
+  "role": "agent",
+  "agent": "marine",
+  "firstName": "Nouveau",
+  "lastName": "Agent"
+}
+
+// Response : utilisateur créé
+GET /api/v1/admin/audit-logs
+javascript// Query params
+?userId=...
+&action=UPDATE
+&resource=lead
+&startDate=2025-01-01
+&endDate=2025-01-31
+&page=1
+&limit=50
+
+// Response
+{
+  "success": true,
+  "data": {
+    "logs": [...],
+    "pagination": { ... }
+  }
+}
+GET /api/v1/admin/system-health
+javascript// Monitoring système
+// Response
+{
+  "success": true,
+  "data": {
+    "database": {
+      "status": "healthy",
+      "responseTime": "15ms",
+      "connections": 5
+    },
+    "apis": {
+      "googleAds": { status: "healthy", lastSync: "2025-01-15T10:00:00Z" },
+      "metaAds": { status: "healthy", lastSync: "2025-01-15T10:05:00Z" },
+      "brevo": { status: "healthy", lastSend: "2025-01-15T09:45:00Z" }
+    },
+    "storage": {
+      "used": "1.2GB",
+      "total": "10GB",
+      "percentage": 12
+    }
+  }
+}
+
+6. INTÉGRATIONS EXTERNES
+6.1 Webhook Simulator → CRM
+Endpoint existant : https://primary-production-7acf.up.railway.app/webhook/922b17bc-e23a-4df7-a2a7-6e4e23231646
+Modification requise : Remplacer l'appel webhook actuel par un appel direct à l'API CRM
+javascript// Dans src/services/api.service.js
+async submitSimulatorResults(simulatorData) {
+  try {
+    // NOUVEAU : POST direct vers API CRM
+    const response = await this.axios.post('/leads', {
+      source: 'simulator',
+      platform: simulatorData.platform,
+      artistName: simulatorData.artistName,
+      email: simulatorData.email,
+      budget: simulatorData.budget,
+      campaignType: simulatorData.campaignType,
+      estimatedViews: simulatorData.views,
+      estimatedCPV: simulatorData.cpv,
+      estimatedReach: simulatorData.reach,
+      country: simulatorData.country
+    });
+    
+    // Envoi email confirmation via Brevo (déclenché côté backend)
+    
+    return response.data;
+  } catch (error) {
+    console.error('Erreur création lead:', error);
+    throw error;
+  }
+}
+Backend : Endpoint /api/v1/leads déclenche automatiquement :
+
+Création du lead
+Auto-assignment selon plateforme
+Email de confirmation via Brevo (template existant)
+Notification Slack à l'agent assigné
+
+6.2 Formulaire Contact → CRM
+Modification : src/components/sections/Contact.jsx
+javascriptconst handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  try {
+    // POST vers CRM au lieu de /contact/submit
+    await apiService.axios.post('/leads', {
+      source: 'contact_form',
+      platform: formData.platform,
+      artistName: formData.name,
+      email: formData.email,
+      budget: 1000, // Budget par défaut (à affiner)
+      notes: [{
+        author: 'system',
+        content: formData.message,
+        type: 'note'
+      }]
+    });
+    
+    setFormStatus({ success: true, ... });
+  } catch (error) {
+    setFormStatus({ error: error.message });
+  }
+};
+6.3 Brevo (Emails transactionnels)
+Templates à créer dans Brevo :
+
+Template : Lead Confirmation
+
+html<!-- ID: 1 -->
+Sujet : Votre demande chez MDMC Music Ads
+
+Bonjour {{params.ARTISTNAME}},
+
+Merci pour votre intérêt ! Votre demande de campagne {{params.PLATFORM}} a bien été reçue.
+
+Détails :
+- Budget : {{params.BUDGET}}€
+- Vues estimées : {{params.VIEWS}}
+- Agent assigné : {{params.AGENT}}
+
+{{params.AGENT_FIRSTNAME}} vous contactera sous 48h.
+
+Cordialement,
+L'équipe MDMC
+
+Template : Follow-up Reminder (agent)
+
+html<!-- ID: 2 -->
+Sujet : [MDMC CRM] Rappel : Lead {{params.ARTISTNAME}} à relancer
+
+Bonjour {{params.AGENT_FIRSTNAME}},
+
+Le lead {{params.ARTISTNAME}} ({{params.EMAIL}}) nécessite un suivi.
+
+Dernier contact : {{params.LAST_CONTACT}}
+Statut actuel : {{params.STATUS}}
+
+[Voir dans le CRM](https://app.mdmcmusicads.com/admin/lead/{{params.LEAD_ID}})
+
+Template : Campaign Won
+
+html<!-- ID: 3 -->
+Sujet : Félicitations ! Nouvelle campagne gagnée
+
+Bonjour {{params.AGENT_FIRSTNAME}},
+
+🎉 Le lead {{params.ARTISTNAME}} est passé en "Gagné" !
+
+Montant : {{params.DEAL_VALUE}}€
+Commission : {{params.COMMISSION}}€
+
+[Créer la campagne](https://app.mdmcmusicads.com/admin/campaign/create?leadId={{params.LEAD_ID}})
+API Brevo : Intégration dans le backend
+javascript// backend/services/email.service.js
+import axios from 'axios';
+
+class EmailService {
+  constructor() {
+    this.apiKey = process.env.BREVO_API_KEY;
+    this.baseUrl = 'https://api.brevo.com/v3';
+  }
+  
+  async sendTemplateEmail(templateId, to, params) {
+    try {
+      await axios.post(
+        `${this.baseUrl}/smtp/email`,
+        {
+          sender: {
+            name: 'MDMC Music Ads',
+            email: 'contact@mdmcmusicads.com'
+          },
+          to: [{ email: to }],
+          templateId,
+          params
+        },
+        {
+          headers: {
+            'api-key': this.apiKey,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log(`✉️ Email envoyé (template ${templateId}) à ${to}`);
+    } catch (error) {
+      console.error('❌ Erreur envoi email:', error);
+      throw error;
+    }
+  }
+  
+  // Méthodes spécifiques
+  async sendLeadConfirmation(lead) {
+    const agentName = lead.assignedTo === 'denis' ? 'Denis' : 'Marine';
+    
+    await this.sendTemplateEmail(1, lead.email, {
+      ARTISTNAME: lead.artistName,
+      PLATFORM: lead.platform.toUpperCase(),
+      BUDGET: lead.budget,
+      VIEWS: lead.estimatedViews?.toLocaleString('fr-FR'),
+      AGENT: agentName,
+      AGENT_FIRSTNAME: agentName
+    });
+  }
+  
+  async sendFollowUpReminder(lead) {
+    const agentEmail = lead.assignedTo === 'denis' 
+      ? 'denis@mdmcmusicads.com' 
+      : 'marine@mdmcmusicads.com';
+    
+    await this.sendTemplateEmail(2, agentEmail, {
+      AGENT_FIRSTNAME: lead.assignedTo === 'denis' ? 'Denis' : 'Marine',
+      ARTISTNAME: lead.artistName,
+      EMAIL: lead.email,
+      LAST_CONTACT: lead.lastContactDate?.toLocaleDateString('fr-FR') || 'Jamais',
+      STATUS: lead.status,
+      LEAD_ID: lead._id
+    });
+  }
+  
+  async sendCampaignWon(lead) {
+    const agentEmail = lead.assignedTo === 'denis' 
+      ? 'denis@mdmcmusicads.com' 
+      : 'marine@mdmcmusicads.com';
+    
+    await this.sendTemplateEmail(3, agentEmail, {
+      AGENT_FIRSTNAME: lead.assignedTo === 'denis' ? 'Denis' : 'Marine',
+      ARTISTNAME: lead.artistName,
+      DEAL_VALUE: lead.dealValue?.toLocaleString('fr-FR'),
+      COMMISSION: lead.commission?.toLocaleString('fr-FR'),
+      LEAD_ID: lead._id
+    });
+  }
+}
+
+export default new EmailService();
+6.4 Slack Notifications (optionnel)
+javascript// backend/services/slack.service.js
+import axios from 'axios';
+
+class SlackService {
+  constructor() {
+    this.webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  }
+  
+  async notifyNewLead(lead) {
+    if (!this.webhookUrl) return;
+    
+    const platformEmojis = {
+      youtube: ':youtube:',
+      spotify: ':spotify:',
+      meta: ':facebook:',
+      tiktok: ':tiktok:'
+    };
+    
+    await axios.post(this.webhookUrl, {
+      text: `🎯 Nouveau lead ${platformEmojis[lead.platform]}`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Nouveau lead ${lead.platform.toUpperCase()}*\n\n` +
+                  `🎤 Artiste : *${lead.artistName}*\n` +
+                  `💰 Budget : ${lead.budget}€\n` +
+                  `👤 Assigné à : *${lead.assignedTo}*\n` +
+                  `📊 Vues estimées : ${lead.estimatedViews?.toLocaleString('fr-FR')}`
+          }
+        },
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: { type: 'plain_text', text: 'Voir dans le CRM' },
+              url: `https://app.mdmcmusicads.com/admin/lead/${lead._id}`
+            }
+          ]
+        }
+      ]
+    });
+  }
+}
+
+export default new SlackService();
+6.5 n8n Workflows
+Workflow 1 : Follow-up Automation
+json{
+  "name": "CRM Follow-up Automation",
+  "nodes": [
+    {
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "MongoDB - Find Leads to Follow",
+      "type": "n8n-nodes-base.mongodb",
+      "position": [450, 300],
+      "parameters": {
+        "operation": "findMany",
+        "collection": "leads",
+        "query": {
+          "nextFollowUp": {
+            "$lte": "={{ new Date().toISOString() }}"
+          },
+          "status": {
+            "$in": ["new", "contacted", "qualified", "proposal_sent"]
+          }
+        }
+      }
+    },
+    {
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [650, 300],
+      "parameters": {
+        "batchSize": 10
+      }
+    },
+    {
+      "name": "Brevo - Send Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [850, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "headerAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{$env.BREVO_API_KEY}}"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "templateId",
+              "value": 2
+            },
+            {
+              "name": "to",
+              "value": "={{$json.assignedTo === 'denis' ? 'denis@mdmcmusicads.com' : 'marine@mdmcmusicads.com'}}"
+            },
+            {
+              "name": "params",
+              "value": {
+                "AGENT_FIRSTNAME": "={{$json.assignedTo}}",
+                "ARTISTNAME": "={{$json.artistName}}",
+                "EMAIL": "={{$json.email}}",
+                "LAST_CONTACT": "={{$json.lastContactDate}}",
+                "STATUS": "={{$json.status}}",
+                "LEAD_ID": "={{$json._id}}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "MongoDB - Update Follow-up Count",
+      "type": "n8n-nodes-base.mongodb",
+      "position": [1050, 300],
+      "parameters": {
+        "operation": "updateOne",
+        "collection": "leads",
+        "query": {
+          "_id": "={{$json._id}}"
+        },
+        "update": {
+          "$inc": { "followUpCount": 1 },
+          "$set": { 
+            "nextFollowUp": "={{ new Date(Date.now() + 7*24*60*60*1000).toISOString() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "MongoDB - Find Leads to Follow" }]]
+    },
+    "MongoDB - Find Leads to Follow": {
+      "main": [[{ "node": "Loop Over Leads" }]]
+    },
+    "Loop Over Leads": {
+      "main": [[{ "node": "Brevo - Send Reminder" }]]
+    },
+    "Brevo - Send Reminder": {
+      "main": [[{ "node": "MongoDB - Update Follow-up Count" }]]
+    }
+  }
+}
+Workflow 2 : Campaign Performance Sync
+json{
+  "name": "CRM Campaign Sync",
+  "nodes": [
+    {
+      "name": "Schedule - Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 6 }]
+        }
+      }
+    },
+    {
+      "name": "MongoDB - Get Active Campaigns",
+      "type": "n8n-nodes-base.mongodb",
+      "parameters": {
+        "operation": "findMany",
+        "collection": "campaigns",
+        "query": {
+          "status": "active",
+          "platform": { "$in": ["youtube", "meta"] }
+        }
+      }
+    },
+    {
+      "name": "Switch - Platform",
+      "type": "n8n-nodes-base.switch",
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.platform}}",
+              "value2": "youtube"
+            },
+            {
+              "value1": "={{$json.platform}}",
+              "value2": "meta"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Google Ads API",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "https://googleads.googleapis.com/v14/customers/{{$json.externalAdAccountId}}/campaigns/{{$json.externalCampaignId}}",
+        "authentication": "oAuth2",
+        "oAuth2Api": "googleAdsOAuth2"
+      }
+    },
+    {
+      "name": "Meta Ads API",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "https://graph.facebook.com/v18.0/{{$json.externalCampaignId}}/insights",
+        "authentication": "oAuth2",
+        "queryParameters": {
+          "parameters": [
+            { "name": "fields", "value": "impressions,reach,clicks,ctr,spend,actions" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "MongoDB - Update Metrics",
+      "type": "n8n-nodes-base.mongodb",
+      "parameters": {
+        "operation": "updateOne",
+        "collection": "campaigns",
+        "query": { "_id": "={{$json._id}}" },
+        "update": {
+          "$set": {
+            "metrics.impressions": "={{$json.impressions}}",
+            "metrics.views": "={{$json.video_views || $json.clicks}}",
+            "metrics.clicks": "={{$json.clicks}}",
+            "metrics.ctr": "={{$json.ctr}}",
+            "spent": "={{$json.spend}}",
+            "lastSyncDate": "={{ new Date().toISOString() }}"
+          }
+        }
+      }
+    }
+  ]
+}
+
+7. INTERFACE UTILISATEUR
+7.1 Routes Frontend
+Structure des routes dans App.jsx
+javascript// Routes existantes à conserver
+<Route path="/" element={<HomePage />} />
+<Route path="/all-reviews" element={<AllReviews />} />
+<Route path="/faq" element={<FAQPage />} />
+// ... autres pages existantes
+
+// Routes Admin (nouvelles)
+<Route path="/admin" element={<AdminLogin />} />
+
+<Route 
+  path="/admin/dashboard" 
+  element={
+    <ProtectedRoute>
+      <AdminDashboard />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/admin/leads" 
+  element={
+    <ProtectedRoute>
+      <LeadsList />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/admin/lead/:id" 
+  element={
+    <ProtectedRoute>
+      <LeadDetail />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/admin/campaigns" 
+  element={
+    <ProtectedRoute>
+      <CampaignsList />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/admin/campaign/:id" 
+  element={
+    <ProtectedRoute>
+      <CampaignDetail />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/admin/stats" 
+  element={
+    <ProtectedRoute>
+      <StatsPage />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/admin/settings" 
+  element={
+    <ProtectedRoute requireAdmin>
+      <SettingsPage />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+### 7.2 Composants principaux à créer
+
+**Structure des fichiers**
+```
+src/
+├── components/
+│   ├── admin/
+│   │   ├── AdminLogin.jsx (existe déjà)
+│   │   ├── AdminPanel.jsx (à étendre)
+│   │   ├── AdminDashboard.jsx (nouveau)
+│   │   ├── AdminLayout.jsx (nouveau - layout avec sidebar)
+│   │   ├── ProtectedRoute.jsx (existe déjà - à étendre)
+│   │   │
+│   │   ├── leads/
+│   │   │   ├── LeadsList.jsx
+│   │   │   ├── LeadCard.jsx
+│   │   │   ├── LeadDetail.jsx
+│   │   │   ├── LeadForm.jsx
+│   │   │   ├── LeadFilters.jsx
+│   │   │   ├── LeadKanban.jsx (Phase 2)
+│   │   │   └── LeadTimeline.jsx
+│   │   │
+│   │   ├── campaigns/
+│   │   │   ├── CampaignsList.jsx
+│   │   │   ├── CampaignCard.jsx
+│   │   │   ├── CampaignDetail.jsx
+│   │   │   └── CampaignMetrics.jsx
+│   │   │
+│   │   ├── stats/
+│   │   │   ├── StatsPage.jsx
+│   │   │   ├── StatsOverview.jsx
+│   │   │   ├── StatsCharts.jsx
+│   │   │   ├── StatsFunnel.jsx
+│   │   │   └── StatsComparison.jsx
+│   │   │
+│   │   └── common/
+│   │       ├── Sidebar.jsx
+│   │       ├── StatsCard.jsx
+│   │       ├── DataTable.jsx
+│   │       ├── DateRangePicker.jsx
+│   │       └── ExportButton.jsx
+│   │
+│   └── ... (autres sections existantes)
+│
+├── assets/
+│   └── styles/
+│       ├── admin/
+│       │   ├── dashboard.css
+│       │   ├── leads.css
+│       │   ├── campaigns.css
+│       │   ├── stats.css
+│       │   └── sidebar.css
+│       └── ...
+│
+├── services/
+│   ├── api.service.js (existe - à étendre)
+│   ├── crm.service.js (nouveau)
+│   ├── auth.service.js (nouveau)
+│   └── ...
+│
+└── utils/
+    ├── formatters.js (dates, nombres, etc.)
+    ├── validators.js
+    └── constants.js
+```
+
+### 7.3 Spécifications design
+
+**Charte graphique**
+- Couleurs principales (cohérence avec le site) :
+  - Rouge primaire : `#DC143C`
+  - Rouge foncé : `#8B0000`
+  - Noir : `#0a0a0a`
+  - Blanc : `#ffffff`
+  - Gris : `rgba(255, 255, 255, 0.1)` pour cartes glassmorphism
+
+**Typographie**
+- Font principale : (celle utilisée sur le site actuel)
+- Tailles : 14px (body), 16px (titres cartes), 24px (titres sections), 32px (hero)
+
+**Composants**
+- Boutons : border-radius 8px, glassmorphism effect
+- Cartes : border-radius 16px, backdrop-filter blur
+- Inputs : border-radius 8px, bordure rouge au focus
+- Badges statuts :
+  - `new` : bleu (#3b82f6)
+  - `contacted` : violet (#8b5cf6)
+  - `qualified` : orange (#f59e0b)
+  - `proposal_sent` : vert (#10b981)
+  - `won` : vert foncé (#22c55e)
+  - `lost` : rouge (#ef4444)
+
+**Responsive**
+- Desktop first (>1200px)
+- Tablet (768px-1199px) : sidebar collapse
+- Mobile (<768px) : bottom nav
+
+### 7.4 Wireframes des pages clés
+
+**AdminDashboard.jsx**
+```
+┌─────────────────────────────────────────────────┐
+│ Sidebar │ Dashboard Overview                     │
+│         │                                         │
+│ 📊 Dashboard│ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐  │
+│ 🎯 Leads   │ │Total│ │Conv.│ │Rev. │ │Act. │  │
+│ 🎬 Campaigns│ │45   │ │27% │ │36K€ │ │12   │  │
+│ 📈 Stats   │ └─────┘ └─────┘ └─────┘ └─────┘  │
+│ ⚙️ Settings│                                     │
+│            │ ┌──────────────────────────────┐  │
+│            │ │ Leads par semaine (chart)    │  │
+│            │ │          ╱╲                   │  │
+│            │ │         ╱  ╲     ╱╲          │  │
+│            │ │    ╱╲  ╱    ╲   ╱  ╲         │  │
+│            │ │   ╱  ╲╱      ╲╱╱    ╲        │  │
+│            │ └──────────────────────────────┘  │
+│            │                                     │
+│            │ ┌────────────┐ ┌────────────────┐ │
+│            │ │ Platform   │ │ Recent Leads   │ │
+│            │ │ Split      │ │ - Artist 1     │ │
+│            │ │  YouTube 45%│ │ - Artist 2     │ │
+│            │ │  Meta 30%  │ │ - Artist 3     │ │
+│            │ │  TikTok 25%│ │ ...            │ │
+│            │ └────────────┘ └────────────────┘ │
+└─────────────────────────────────────────────────┘
+```
+
+**LeadsList.jsx**
+```
+┌─────────────────────────────────────────────────┐
+│ Sidebar │ Leads Management                       │
+│         │                                         │
+│         │ [Filtres] Platform ▼ Status ▼ Agent ▼ │
+│         │ [Search] 🔍 Rechercher...              │
+│         │                                         │
+│         │ ┌───────────────────────────────────┐ │
+│         │ │ Artiste │ Platform│Budget│Status│ │ │
+│         │ ├───────────────────────────────────┤ │
+│         │ │ Artist1 │ YouTube │2000€ │ New  │>││
+│         │ │ Artist2 │ Meta    │1500€ │Contact│││
+│         │ │ Artist3 │ TikTok  │3000€ │Won   │││
+│         │ │ ...                               │ │
+│         │ └───────────────────────────────────┘ │
+│         │ [< Prev] Page 1/8 [Next >]            │
+└─────────────────────────────────────────────────┘
+```
+
+**LeadDetail.jsx**
+```
+┌─────────────────────────────────────────────────┐
+│ Sidebar │ Lead: Artist Name                      │
+│         │ [< Retour] [Won] [Lost] [Reassign]     │
+│         │                                         │
+│         │ ┌──────────────┐ ┌──────────────────┐ │
+│         │ │ Contact Info │ │ Campaign Details │ │
+│         │ │ 📧 email     │ │ 🎬 YouTube Ads   │ │
+│         │ │ 📞 phone     │ │ 💰 2000€         │ │
+│         │ │ 🌍 France    │ │ 👁️ 100K views    │ │
+│         │ └──────────────┘ └──────────────────┘ │
+│         │                                         │
+│         │ ┌─────────────────────────────────────┐│
+│         │ │ Timeline                            ││
+│         │ │ 🕒 15/01 - Created by simulator     ││
+│         │ │ 📧 16/01 - Email sent by Denis      ││
+│         │ │ 📞 17/01 - Call scheduled           ││
+│         │ │ ➕ Add note...                      ││
+│         │ └─────────────────────────────────────┘│
+└─────────────────────────────────────────────────┘
+
+8. PLAN DE DÉVELOPPEMENT
+8.1 Phase 1 - MVP (2 semaines)
+Objectif : CRM fonctionnel de base avec CRUD leads
+Livrables
+
+Backend API
+
+✅ Setup Express + MongoDB + Mongoose
+✅ Modèles : Lead, User, AuditLog
+✅ Routes authentication (login, logout, refresh)
+✅ Routes leads (CRUD complet)
+✅ Middleware auth + permissions
+✅ Chiffrement email/phone
+✅ Audit trail basique
+
+
+Frontend Admin
+
+✅ AdminLayout avec sidebar
+✅ AdminDashboard (stats cards + chart simple)
+✅ LeadsList (tableau avec filtres)
+✅ LeadDetail (vue détaillée + notes)
+✅ LeadForm (création manuelle)
+
+
+Intégrations
+
+✅ Modifier Simulator → POST /api/v1/leads
+✅ Modifier Contact form → POST /api/v1/leads
+✅ Auto-assignment par plateforme (YouTube/Spotify→Denis, Meta/TikTok→Marine)
+
+
+Sécurité
+
+✅ HTTPS obligatoire
+✅ JWT avec expiration
+✅ Rate limiting login
+✅ Validation inputs stricte
+✅ Headers helmet.js
+
+
+
+Critères de succès
+
+Denis et Marine peuvent se connecter
+Leads créés via simulator apparaissent dans le CRM
+Auto-assignment fonctionne correctement
+Aucune donnée sensible en clair dans MongoDB
+
+8.2 Phase 2 - Pipeline & Automation (2 semaines)
+Objectif : Kanban drag & drop + follow-up automatiques
+Livrables
+
+Backend
+
+✅ Routes stats (overview, performance, funnel)
+✅ Endpoint changement statut
+✅ Calcul auto nextFollowUp
+
+
+Frontend
+
+✅ LeadKanban (vue Kanban avec react-beautiful-dnd)
+✅ Drag & drop changement statut
+✅ StatsPage (charts avec recharts)
+✅ Filtres avancés (date range, tags)
+
+
+Automatisation
+
+✅ n8n workflow : Follow-up quotidien
+✅ Intégration Brevo (3 templates)
+✅ Notifications Slack (optionnel)
+
+
+UX
+
+✅ Animations transitions
+✅ Toasts notifications
+✅ Loading states
+
+
+
+Critères de succès
+
+Glisser-déposer un lead change son statut
+Email de rappel envoyé automatiquement à J+2
+Dashboard analytics fonctionnel
+
+8.3 Phase 3 - Campagnes & Performance (2 semaines)
+Objectif : Suivi post-vente des campagnes actives
+Livrables
+
+Backend
+
+✅ Modèle Campaign
+✅ Routes campaigns (CRUD)
+✅ Endpoint /sync pour MAJ metrics
+
+
+Frontend
+
+✅ CampaignsList
+✅ CampaignDetail avec KPIs temps réel
+✅ Charts performance (CPV, CTR, ROI)
+
+
+Intégrations APIs
+
+✅ Google Ads API (YouTube & Spotify)
+✅ Meta Ads API (Facebook/Instagram & TikTok)
+✅ n8n workflow : Sync toutes les 6h
+
+
+Alertes
+
+✅ Email si budget >90%
+✅ Slack si CPV > seuil
+
+
+
+Critères de succès
+
+Campagne créée automatiquement si lead→won
+Métriques synchro depuis Google/Meta Ads
+Alertes budget fonctionnelles
+
+8.4 Phase 4 - Optimisations & Finitions (1 semaine)
+Objectif : Polish, export, rapports
+Livrables
+
+Fonctionnalités
+
+✅ Export CSV leads/campagnes
+✅ Rapports hebdomadaires auto (PDF)
+✅ Recherche full-text
+✅ Tags personnalisables
+
+
+Admin
+
+✅ Gestion utilisateurs
+✅ Logs d'audit accessibles
+✅ System health monitoring
+
+
+Performance
+
+✅ Lazy loading composants
+✅ Pagination optimisée
+✅ Cache Redis (optionnel)
+
+
+Tests
+
+✅ Tests unitaires backend (Jest)
+✅ Tests E2E admin (Playwright)
+
+
+
+Critères de succès
+
+Temps de chargement <2s
+Export CSV fonctionnel
+Audit trail complet
+
+
+9. CONFIGURATION & DÉPLOIEMENT
+9.1 Variables d'environnement
+Backend (.env)
+bash# Server
+NODE_ENV=production
+PORT=3001
+BASE_URL=https://api.mdmcmusicads.com
+
+# Database
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/mdmc-crm?retryWrites=true&w=majority
+MONGODB_DB_NAME=mdmc-crm
+
+# Security
+JWT_SECRET=votre-secret-256-bits-minimum
+JWT_EXPIRES_IN=8h
+REFRESH_TOKEN_EXPIRES_IN=30d
+ENCRYPTION_KEY=votre-cle-aes-256-32-bytes-hex
+
+# Email (Brevo)
+BREVO_API_KEY=xkeysib-xxx
+BREVO_SENDER_EMAIL=contact@mdmcmusicads.com
+BREVO_SENDER_NAME=MDMC Music Ads
+
+# APIs externes
+GOOGLE_ADS_CLIENT_ID=xxx
+GOOGLE_ADS_CLIENT_SECRET=xxx
+GOOGLE_ADS_REFRESH_TOKEN=xxx
+GOOGLE_ADS_DEVELOPER_TOKEN=xxx
+
+META_ADS_APP_ID=xxx
+META_ADS_APP_SECRET=xxx
+META_ADS_ACCESS_TOKEN=xxx
+
+# Slack (optionnel)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+LOGIN_RATE_LIMIT_MAX=5
+
+# Logs
+LOG_LEVEL=info
+LOG_FILE_PATH=./logs
+Frontend (.env)
+bashVITE_API_URL=https://api.mdmcmusicads.com/api/v1
+VITE_APP_ENV=production
+9.2 Déploiement Backend (Railway)
+railway.json
+json{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "node dist/server.js",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "healthcheckPath": "/health",
+  "healthcheckTimeout": 300
+}
+package.json (scripts)
+json{
+  "scripts": {
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "dev": "nodemon src/server.ts",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "migrate": "node scripts/migrate.js"
+  }
+}
+Checklist déploiement
+
+ Variables env configurées sur Railway
+ MongoDB Atlas whitelist IP Railway
+ Domain custom pointé (api.mdmcmusicads.com)
+ SSL auto (Let's Encrypt via Railway)
+ Monitoring activé (Railway dashboard)
+ Logs streaming configuré
+
+9.3 Déploiement Frontend (Vercel/Netlify)
+vercel.json
+json{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.mdmcmusicads.com/api/v1/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" }
+      ]
+    }
+  ]
+}
+9.4 CI/CD (GitHub Actions)
+.github/workflows/backend-ci.yml
+yamlname: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm audit --audit-level=moderate
+
+  deploy:
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploy to Railway"
+      # Railway déploie auto via GitHub integration
+
+10. DOCUMENTATION & FORMATION
+10.1 Documentation technique
+À créer dans /docs
+
+README.md : Vue d'ensemble projet
+INSTALLATION.md : Guide setup local
+API.md : Documentation complète API (Swagger/OpenAPI)
+SECURITY.md : Procédures sécurité
+DEPLOYMENT.md : Guide déploiement
+TROUBLESHOOTING.md : Problèmes courants
+
+10.2 Documentation utilisateur
+Guide pour Denis & Marine
+
+Connexion au CRM
+Navigation dans l'interface
+Créer/modifier un lead
+Utiliser le Kanban
+Ajouter des notes
+Marquer un lead comme gagné/perdu
+Lire les stats
+Exporter des données
+
+Format : Wiki Notion avec screenshots + vidéos Loom
+10.3 Formation prévue
+Session 1 (30min) : Tour d'horizon
+
+Connexion
+Dashboard
+Liste des leads
+Filtres
+
+Session 2 (30min) : Gestion quotidienne
+
+Détail d'un lead
+Ajouter notes
+Changer statut
+Follow-ups
+
+Session 3 (30min) : Analytics
+
+Lire les stats
+Comparer performance
+Exporter rapports
+
+
+11. CRITÈRES D'ACCEPTATION
+11.1 Fonctionnels
+
+✅ Auto-assignment correct (YouTube/Spotify→Denis, Meta/TikTok→Marine)
+✅ Leads créés via simulator/form apparaissent dans le CRM
+✅ Agent ne voit QUE ses leads (sauf admin)
+✅ Changement de statut met à jour nextFollowUp
+✅ Email confirmation envoyé au lead
+✅ Email rappel envoyé à l'agent à J+2
+✅ Stats dashboard précises et temps réel
+✅ Export CSV fonctionnel
+
+11.2 Sécurité
+
+✅ Aucune donnée sensible en clair (email/phone chiffrés)
+✅ JWT valide avec expiration
+✅ Rate limiting actif
+✅ HTTPS partout
+✅ Audit trail complet
+✅ RGPD : droit à l'effacement implémenté
+✅ Pas de SQL injection (mongoose)
+✅ Pas de XSS (sanitization)
+
+11.3 Performance
+
+✅ Chargement dashboard <2s
+✅ Recherche leads <1s
+✅ API response time <200ms (P95)
+✅ Pas de memory leak
+✅ Pagination efficace (pas de fetch all)
+
+11.4 UX
+
+✅ Interface intuitive (0 formation pour actions basiques)
+✅ Responsive mobile (consultation uniquement)
+✅ Feedback visuel sur actions (toasts, loaders)
+✅ Aucune perte de données (autosave notes)
+
+
+12. MAINTENANCE & ÉVOLUTIONS
+12.1 Maintenance préventive
+Quotidien
+
+Monitoring logs erreurs (Sentry)
+Check system health dashboard
+Vérification backups MongoDB
+
+Hebdomadaire
+
+Review audit logs suspects
+Update dépendances (npm audit)
+Test restore backup
+
+Mensuel
+
+Rotation secrets (JWT, API keys)
+Review permissions utilisateurs
+Archivage leads >3 ans (RGPD)
+
+12.2 Évolutions futures (post-MVP)
+V2 (Q2 2025)
+
+App mobile (React Native)
+Voice notes (enregistrement appels)
+IA : scoring leads automatique
+Intégration Calendly native
+Webhooks sortants (Zapier)
+
+V3 (Q3 2025)
+
+Multi-agency (white label)
+Facturation intégrée (Stripe)
+Contrats électroniques (DocuSign)
+Tableau de bord client (portail)
+
+V4 (Q4 2025)
+
+Predictive analytics (ML)
+Recommandations campagnes IA
+A/B testing automatique
+Intégration CRM tiers (HubSpot, Pipedrive)
+
+
+13. BUDGET & RESSOURCES
+13.1 Coûts mensuels estimés
+ServicePlanCoûtRailway (backend)Pro20€MongoDB AtlasM1057€Vercel (frontend)Hobby0€BrevoLite (10K emails)25€n8n CloudStarter20€TOTAL122€/mois
+13.2 Temps de développement estimé
+PhaseDuréeChargePhase 1 (MVP)2 semaines60hPhase 2 (Automation)2 semaines50hPhase 3 (Campaigns)2 semaines50hPhase 4 (Polish)1 semaine25hTOTAL7 semaines185h
+
+14. ANNEXES
+14.1 Glossaire
+
+Lead : Prospect ayant manifesté un intérêt (via simulator ou formulaire)
+CPV : Cost Per View (coût par vue)
+CTR : Click-Through Rate (taux de clic)
+ROI : Return On Investment (retour sur investissement)
+NPS : Net Promoter Score (satisfaction client)
+JWT : JSON Web Token (authentification)
+RGPD : Règlement Général sur la Protection des Données
+PCI DSS : Payment Card Industry Data Security Standard
+
+14.2 Contacts
+Équipe projet
+
+Denis (client/admin) : denis@mdmcmusicads.com
+Marine (agent) : marine@mdmcmusicads.com
+
+Support technique
+
+Claude Code (développement) : via interface
+Railway : support@railway.app
+MongoDB Atlas : support@mongodb.com
+
+14.3 Ressources utiles
+Documentation
+
+MongoDB Docs : https://docs.mongodb.com
+Express.js : https://expressjs.com
+React : https://react.dev
+n8n : https://docs.n8n.io
+
+Security
+
+OWASP Top 10 : https://owasp.org/www-project-top-ten
+RGPD Guide : https://www.cnil.fr
+
+
+FIN DU CAHIER DES CHARGES
+Version : 1.0
+Date : 27 octobre 2025
+Auteur : Claude (Anthropic)
+Statut : ✅ Prêt pour développement
+
+Prochaines étapes :
+
+✅ Validation cahier des charges par Denis
+🔄 Transmission à Claude Code pour développement Phase 1
+⏳ Suivi développement avec reviews hebdomadaires
+RéessayerDAc'est bien mais il faut spécifier chaque action doit faire chaque bouton2/2Cahier des Charges CRM MDMC Music Ads - VERSION DÉTAILLÉE
+Spécifications Complètes des Actions & Boutons
+
+SOMMAIRE DES SPÉCIFICATIONS D'ACTIONS
+
+Page de Connexion (AdminLogin)
+Dashboard Principal (AdminDashboard)
+Liste des Leads (LeadsList)
+Détail d'un Lead (LeadDetail)
+Vue Kanban (LeadKanban)
+Formulaire Création Lead (LeadForm)
+Liste des Campagnes (CampaignsList)
+Détail Campagne (CampaignDetail)
+Page Statistiques (StatsPage)
+Page Paramètres Admin (SettingsPage)
+
+
+1. PAGE DE CONNEXION (AdminLogin)
+Composant : /src/components/admin/AdminLogin.jsx
+Layout
+┌─────────────────────────────────────┐
+│          MDMC Music Ads             │
+│         Espace Admin CRM            │
+│                                     │
+│  ┌───────────────────────────────┐ │
+│  │ Email                         │ │
+│  │ [________________]            │ │
+│  │                               │ │
+│  │ Mot de passe                  │ │
+│  │ [________________] 👁️         │ │
+│  │                               │ │
+│  │ ☐ Se souvenir de moi          │ │
+│  │                               │ │
+│  │      [Se connecter]           │ │
+│  │                               │ │
+│  │  Mot de passe oublié ?        │ │
+│  └───────────────────────────────┘ │
+└─────────────────────────────────────┘
+Éléments interactifs
+1.1 Input Email
+Element : <input type="email" id="email" />
+Actions :
+
+onChange → Mise à jour formData.email
+onBlur → Validation format email
+
+Si invalide : afficher erreur "Format email invalide"
+Style : bordure rouge + message erreur en dessous
+
+
+onFocus → Retirer message erreur si présent
+
+Validation :
+javascriptconst validateEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!regex.test(email)) {
+    setErrors(prev => ({ ...prev, email: 'Format email invalide' }));
+    return false;
+  }
+  setErrors(prev => ({ ...prev, email: null }));
+  return true;
+};
+1.2 Input Mot de passe
+Element : <input type="password" id="password" />
+Actions :
+
+onChange → Mise à jour formData.password
+onKeyPress (Enter) → Déclencher handleSubmit()
+
+1.3 Bouton Toggle Visibilité Mot de passe
+Element : <button type="button" class="toggle-password">👁️</button>
+Action onClick :
+javascriptconst togglePasswordVisibility = () => {
+  setShowPassword(!showPassword);
+  const passwordInput = document.getElementById('password');
+  passwordInput.type = showPassword ? 'password' : 'text';
+};
+États visuels :
+
+Mot de passe caché : icône 👁️
+Mot de passe visible : icône 👁️‍🗨️
+
+1.4 Checkbox "Se souvenir de moi"
+Element : <input type="checkbox" id="remember" />
+Action onChange :
+javascriptconst handleRememberChange = (e) => {
+  setRememberMe(e.target.checked);
+  // Stockera le refresh token en localStorage si coché
+  // Sinon uniquement en sessionStorage
+};
+1.5 Bouton "Se connecter"
+Element : <button type="submit" class="btn btn-primary">Se connecter</button>
+Action onClick :
+javascriptconst handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  // 1. Validation des champs
+  if (!formData.email || !formData.password) {
+    setError('Veuillez remplir tous les champs');
+    return;
+  }
+  
+  if (!validateEmail(formData.email)) {
+    return;
+  }
+  
+  // 2. Afficher loader
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // 3. Appel API
+    const response = await axios.post('/api/v1/auth/login', {
+      email: formData.email,
+      password: formData.password
+    });
+    
+    // 4. Stocker token
+    const { token, refreshToken, user } = response.data.data;
+    
+    // Token JWT (8h)
+    localStorage.setItem('mdmc_admin_auth', token);
+    
+    // Refresh token (30j) - selon checkbox
+    if (rememberMe) {
+      localStorage.setItem('mdmc_refresh_token', refreshToken);
+    } else {
+      sessionStorage.setItem('mdmc_refresh_token', refreshToken);
+    }
+    
+    // User info
+    localStorage.setItem('mdmc_user', JSON.stringify(user));
+    
+    // 5. Audit log
+    await axios.post('/api/v1/audit-logs', {
+      action: 'LOGIN',
+      resource: 'auth',
+      success: true
+    });
+    
+    // 6. Redirection
+    navigate('/admin/dashboard');
+    
+  } catch (error) {
+    // 7. Gestion erreurs
+    setLoading(false);
+    
+    if (error.response?.status === 401) {
+      setError('Identifiants incorrects');
+      // Incrémenter compteur tentatives
+      const attempts = parseInt(localStorage.getItem('login_attempts') || '0') + 1;
+      localStorage.setItem('login_attempts', attempts.toString());
+      
+      if (attempts >= 5) {
+        setError('Compte temporairement verrouillé. Réessayez dans 15 minutes.');
+        setAccountLocked(true);
+      }
+    } else if (error.response?.status === 423) {
+      setError('Compte verrouillé. Contactez l\'administrateur.');
+      setAccountLocked(true);
+    } else if (error.response?.status === 429) {
+      setError('Trop de tentatives. Réessayez dans 15 minutes.');
+    } else {
+      setError('Erreur de connexion. Vérifiez votre connexion internet.');
+    }
+    
+    // Audit log échec
+    await axios.post('/api/v1/audit-logs', {
+      action: 'LOGIN',
+      resource: 'auth',
+      success: false,
+      errorMessage: error.message
+    }).catch(() => {}); // Silent fail
+  }
+};
+États visuels :
+
+Normal : Bouton bleu, texte "Se connecter"
+Loading : Bouton gris désactivé, spinner + texte "Connexion..."
+Erreur : Message rouge en dessous du bouton
+Succès : Brève animation checkmark ✓ puis redirection
+
+1.6 Lien "Mot de passe oublié ?"
+Element : <a href="#" class="forgot-password">Mot de passe oublié ?</a>
+Action onClick :
+javascriptconst handleForgotPassword = (e) => {
+  e.preventDefault();
+  
+  // Afficher modal de réinitialisation
+  setShowResetModal(true);
+};
+```
+
+**Modal de réinitialisation** :
+```
+┌─────────────────────────────────┐
+│ Réinitialiser le mot de passe  │
+│                                 │
+│ Email                           │
+│ [________________]              │
+│                                 │
+│    [Annuler]  [Envoyer]        │
+└─────────────────────────────────┘
+Action "Envoyer" :
+javascriptconst handlePasswordReset = async () => {
+  try {
+    await axios.post('/api/v1/auth/forgot-password', {
+      email: resetEmail
+    });
+    
+    setResetSuccess(true);
+    setResetMessage('Email de réinitialisation envoyé. Vérifiez votre boîte mail.');
+    
+    // Fermer modal après 3s
+    setTimeout(() => {
+      setShowResetModal(false);
+    }, 3000);
+    
+  } catch (error) {
+    setResetError('Email non trouvé dans notre système.');
+  }
+};
+```
+
+---
+
+## 2. DASHBOARD PRINCIPAL (AdminDashboard)
+
+### Composant : `/src/components/admin/AdminDashboard.jsx`
+
+### Layout complet
+```
+┌────────────────────────────────────────────────────────────┐
+│ Sidebar    │ Dashboard Overview                            │
+│            │                                                │
+│ 📊 Dashboard│ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐        │
+│ 🎯 Leads   │ │Total │ │Conv. │ │Rev.  │ │Actifs│        │
+│ 🎬 Campaigns│ │  45  │ │ 27%  │ │36K€  │ │  12  │        │
+│ 📈 Stats   │ │ +12% │ │ +5%  │ │ +15% │ │ +3   │        │
+│ ⚙️ Settings│ └──────┘ └──────┘ └──────┘ └──────┘        │
+│            │                                                │
+│ Denis M.   │ [Filtres] Cette semaine ▼  Tous ▼           │
+│ Admin      │                                                │
+│ [Déconnex.]│ ┌────────────────────────────────────────┐   │
+│            │ │ Leads par semaine                      │   │
+│            │ │    ╱╲       ╱╲                         │   │
+│            │ │   ╱  ╲     ╱  ╲    ╱╲                 │   │
+│            │ │  ╱    ╲   ╱    ╲  ╱  ╲                │   │
+│            │ │ ╱      ╲╱╱      ╲╱    ╲               │   │
+│            │ │ L  M  M  J  V  S  D                    │   │
+│            │ └────────────────────────────────────────┘   │
+│            │                                                │
+│            │ ┌───────────────┐ ┌─────────────────────┐   │
+│            │ │ Par plateforme│ │ Derniers leads      │   │
+│            │ │  YouTube  45% │ │ 🎤 Artist 1  [Voir]│   │
+│            │ │  Spotify  15% │ │ 🎤 Artist 2  [Voir]│   │
+│            │ │  Meta     25% │ │ 🎤 Artist 3  [Voir]│   │
+│            │ │  TikTok   15% │ │ 🎤 Artist 4  [Voir]│   │
+│            │ └───────────────┘ │      [Voir tout]    │   │
+│            │                   └─────────────────────┘   │
+│            │                                                │
+│            │ ┌────────────────────────────────────────┐   │
+│            │ │ Alertes & Actions rapides              │   │
+│            │ │ ⚠️ 3 leads sans contact depuis 48h     │   │
+│            │ │    [Voir les leads]                    │   │
+│            │ │ 🔔 2 follow-ups aujourd'hui            │   │
+│            │ │    [Voir ma liste]                     │   │
+│            │ │ 💰 Campagne budget à 95%               │   │
+│            │ │    [Voir campagne]                     │   │
+│            │ └────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────┘
+Éléments interactifs
+2.1 Sidebar - Items de navigation
+2.1.1 Item "Dashboard"
+Element : <button class="nav-item active">📊 Dashboard</button>
+Action onClick :
+javascriptconst handleNavigation = (route) => {
+  // Retirer classe 'active' de tous les items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  
+  // Ajouter classe 'active' à l'item cliqué
+  event.target.classList.add('active');
+  
+  // Navigation
+  navigate(route);
+};
+
+// Utilisation
+onClick={() => handleNavigation('/admin/dashboard')}
+2.1.2 Item "Leads"
+Action : navigate('/admin/leads')
+2.1.3 Item "Campaigns"
+Action : navigate('/admin/campaigns')
+2.1.4 Item "Stats"
+Action : navigate('/admin/stats')
+2.1.5 Item "Settings" (admin uniquement)
+Condition d'affichage :
+javascript{user.role === 'admin' && (
+  <button class="nav-item" onClick={() => handleNavigation('/admin/settings')}>
+    ⚙️ Settings
+  </button>
+)}
+2.1.6 Bouton "Déconnexion"
+Element : <button class="btn-logout">Déconnexion</button>
+Action onClick :
+javascriptconst handleLogout = async () => {
+  try {
+    // 1. Afficher modal de confirmation
+    const confirmed = await showConfirmModal({
+      title: 'Déconnexion',
+      message: 'Êtes-vous sûr de vouloir vous déconnecter ?',
+      confirmText: 'Oui, déconnecter',
+      cancelText: 'Annuler'
+    });
+    
+    if (!confirmed) return;
+    
+    // 2. Appel API logout
+    await axios.post('/api/v1/auth/logout', {}, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('mdmc_admin_auth')}`
+      }
+    });
+    
+    // 3. Nettoyer le localStorage
+    localStorage.removeItem('mdmc_admin_auth');
+    localStorage.removeItem('mdmc_refresh_token');
+    localStorage.removeItem('mdmc_user');
+    sessionStorage.clear();
+    
+    // 4. Audit log
+    await axios.post('/api/v1/audit-logs', {
+      action: 'LOGOUT',
+      resource: 'auth',
+      success: true
+    }).catch(() => {}); // Silent fail
+    
+    // 5. Redirection
+    navigate('/admin');
+    
+    // 6. Toast confirmation
+    showToast('Déconnexion réussie', 'success');
+    
+  } catch (error) {
+    console.error('Erreur logout:', error);
+    // Forcer la déconnexion côté client même en cas d'erreur
+    localStorage.clear();
+    sessionStorage.clear();
+    navigate('/admin');
+  }
+};
+```
+
+#### 2.2 Cards statistiques (Stats Cards)
+
+##### 2.2.1 Card "Total Leads"
+**Layout** :
+```
+┌──────────┐
+│  Total   │
+│   45     │
+│  +12%    │
+└──────────┘
+Action onClick :
+javascriptconst handleStatsCardClick = (type) => {
+  // Rediriger vers la liste filtrée
+  navigate(`/admin/leads?filter=${type}`);
+};
+
+// Card Total
+onClick={() => handleStatsCardClick('all')}
+Effet hover :
+css.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(220, 20, 60, 0.2);
+  cursor: pointer;
+}
+2.2.2 Card "Taux de conversion"
+Action : navigate('/admin/stats?view=funnel')
+2.2.3 Card "Revenue"
+Action : navigate('/admin/stats?view=revenue')
+2.2.4 Card "Campagnes actives"
+Action : navigate('/admin/campaigns?status=active')
+2.3 Filtres période
+Element :
+jsx<select id="period-filter" onChange={handlePeriodChange}>
+  <option value="today">Aujourd'hui</option>
+  <option value="week" selected>Cette semaine</option>
+  <option value="month">Ce mois-ci</option>
+  <option value="quarter">Ce trimestre</option>
+  <option value="year">Cette année</option>
+  <option value="custom">Période personnalisée</option>
+</select>
+Action onChange :
+javascriptconst handlePeriodChange = async (e) => {
+  const period = e.target.value;
+  
+  if (period === 'custom') {
+    // Afficher date picker
+    setShowDatePicker(true);
+    return;
+  }
+  
+  // Calculer dates
+  const { startDate, endDate } = calculatePeriodDates(period);
+  
+  // Afficher loader sur toutes les stats
+  setStatsLoading(true);
+  
+  try {
+    // Recharger toutes les données
+    const [stats, chartData, recentLeads] = await Promise.all([
+      axios.get('/api/v1/stats/overview', {
+        params: { startDate, endDate }
+      }),
+      axios.get('/api/v1/stats/chart-data', {
+        params: { startDate, endDate, groupBy: 'day' }
+      }),
+      axios.get('/api/v1/leads', {
+        params: { 
+          limit: 5, 
+          sortBy: 'createdAt', 
+          sortOrder: 'desc',
+          startDate,
+          endDate
+        }
+      })
+    ]);
+    
+    // Mettre à jour les états
+    setOverviewStats(stats.data.data);
+    setChartData(chartData.data.data);
+    setRecentLeads(recentLeads.data.data.leads);
+    
+    // Animer les changements
+    animateStatsUpdate();
+    
+  } catch (error) {
+    showToast('Erreur de chargement des statistiques', 'error');
+  } finally {
+    setStatsLoading(false);
+  }
+};
+
+const calculatePeriodDates = (period) => {
+  const now = new Date();
+  let startDate, endDate = now;
+  
+  switch(period) {
+    case 'today':
+      startDate = new Date(now.setHours(0,0,0,0));
+      break;
+    case 'week':
+      startDate = new Date(now.setDate(now.getDate() - 7));
+      break;
+    case 'month':
+      startDate = new Date(now.setMonth(now.getMonth() - 1));
+      break;
+    case 'quarter':
+      startDate = new Date(now.setMonth(now.getMonth() - 3));
+      break;
+    case 'year':
+      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      break;
+  }
+  
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString()
+  };
+};
+2.4 Filtre agent (admin uniquement)
+Element :
+jsx{user.role === 'admin' && (
+  <select id="agent-filter" onChange={handleAgentChange}>
+    <option value="all">Tous les agents</option>
+    <option value="denis">Denis</option>
+    <option value="marine">Marine</option>
+  </select>
+)}
+Action onChange :
+javascriptconst handleAgentChange = async (e) => {
+  const agent = e.target.value;
+  setSelectedAgent(agent);
+  
+  // Recharger stats avec filtre agent
+  await fetchDashboardData({
+    agent: agent === 'all' ? null : agent,
+    period: selectedPeriod
+  });
+};
+2.5 Graphique "Leads par semaine"
+Librairie : Recharts
+Interactions :
+2.5.1 Hover sur point
+javascriptconst CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="chart-tooltip">
+        <p className="label">{payload[0].payload.date}</p>
+        <p className="value">
+          <strong>{payload[0].value}</strong> leads
+        </p>
+        <p className="comparison">
+          {payload[0].payload.previousWeek && (
+            <>vs semaine précédente: {payload[0].payload.previousWeek}</>
+          )}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+2.5.2 Click sur point
+javascriptconst handleChartClick = (data) => {
+  if (!data) return;
+  
+  const { date } = data.activePayload[0].payload;
+  
+  // Rediriger vers liste des leads de ce jour
+  navigate(`/admin/leads?date=${date}`);
+};
+
+<LineChart onClick={handleChartClick}>
+  {/* ... */}
+</LineChart>
+2.5.3 Bouton "Exporter graphique"
+Element : <button class="btn-icon" title="Exporter en PNG">📊</button>
+Action onClick :
+javascriptconst exportChartAsPNG = async () => {
+  try {
+    const chartElement = document.querySelector('.chart-container');
+    
+    // Utiliser html2canvas
+    const canvas = await html2canvas(chartElement);
+    
+    // Télécharger
+    const link = document.createElement('a');
+    link.download = `leads-chart-${new Date().toISOString()}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
+    
+    showToast('Graphique exporté', 'success');
+    
+  } catch (error) {
+    showToast('Erreur d\'export', 'error');
+  }
+};
+```
+
+#### 2.6 Section "Derniers leads"
+
+##### 2.6.1 Item de lead
+```
+🎤 Artist Name  [Voir]
+Action bouton "Voir" :
+javascriptconst handleViewLead = (leadId) => {
+  navigate(`/admin/lead/${leadId}`);
+};
+
+<button 
+  className="btn-view" 
+  onClick={() => handleViewLead(lead._id)}
+>
+  Voir
+</button>
+2.6.2 Bouton "Voir tout"
+Action : navigate('/admin/leads')
+2.7 Section "Alertes & Actions rapides"
+2.7.1 Alerte "Leads sans contact depuis 48h"
+Action bouton "Voir les leads" :
+javascriptconst handleViewStaleLeads = () => {
+  navigate('/admin/leads?filter=stale&hours=48');
+};
+Backend filter :
+javascript// Route GET /api/v1/leads?filter=stale&hours=48
+if (filter === 'stale') {
+  const hoursAgo = parseInt(hours) || 48;
+  const cutoffDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+  
+  query = {
+    status: { $in: ['new', 'contacted'] },
+    $or: [
+      { lastContactDate: { $lt: cutoffDate } },
+      { lastContactDate: null, createdAt: { $lt: cutoffDate } }
+    ]
+  };
+}
+2.7.2 Alerte "Follow-ups aujourd'hui"
+Action : navigate('/admin/leads?filter=followup&date=today')
+2.7.3 Alerte "Campagne budget à 95%"
+Action :
+javascriptconst handleCampaignAlert = (campaignId) => {
+  // Ouvrir modal détail campagne
+  setSelectedCampaign(campaignId);
+  setShowCampaignModal(true);
+};
+```
+
+**Modal campagne** :
+```
+┌────────────────────────────────────┐
+│ ⚠️ Alerte Budget Campagne          │
+│                                    │
+│ Artist Name - YouTube Ads          │
+│                                    │
+│ Budget: 2000€                      │
+│ Dépensé: 1900€ (95%)              │
+│ Reste: 100€                        │
+│                                    │
+│ Actions:                           │
+│ [Augmenter budget]                 │
+│ [Mettre en pause]                  │
+│ [Voir détails]                     │
+│                                    │
+│           [Fermer]                 │
+└────────────────────────────────────┘
+Action "Augmenter budget" :
+javascriptconst handleIncreaseBudget = async () => {
+  // Afficher modal saisie nouveau budget
+  const newBudget = await showBudgetModal({
+    current: campaign.budget,
+    spent: campaign.spent,
+    remaining: campaign.budget - campaign.spent
+  });
+  
+  if (!newBudget) return;
+  
+  try {
+    await axios.patch(`/api/v1/campaigns/${campaign._id}`, {
+      budget: newBudget
+    });
+    
+    showToast('Budget mis à jour', 'success');
+    
+    // Refresh dashboard
+    fetchDashboardData();
+    
+  } catch (error) {
+    showToast('Erreur de mise à jour', 'error');
+  }
+};
+Action "Mettre en pause" :
+javascriptconst handlePauseCampaign = async () => {
+  const confirmed = await showConfirmModal({
+    title: 'Mettre en pause',
+    message: 'Voulez-vous mettre cette campagne en pause ?',
+    confirmText: 'Oui, mettre en pause',
+    cancelText: 'Annuler',
+    variant: 'warning'
+  });
+  
+  if (!confirmed) return;
+  
+  try {
+    await axios.patch(`/api/v1/campaigns/${campaign._id}`, {
+      status: 'paused'
+    });
+    
+    showToast('Campagne mise en pause', 'success');
+    fetchDashboardData();
+    
+  } catch (error) {
+    showToast('Erreur', 'error');
+  }
+};
+```
+
+---
+
+## 3. LISTE DES LEADS (LeadsList)
+
+### Composant : `/src/components/admin/leads/LeadsList.jsx`
+
+### Layout
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Sidebar  │ Leads Management                                 │
+│          │                                                   │
+│          │ [+ Nouveau lead]  [⬇️ Exporter]  [🔄 Actualiser]│
+│          │                                                   │
+│          │ Filtres:                                         │
+│          │ [Plateforme ▼] [Statut ▼] [Agent ▼] [🗓️ Date]  │
+│          │ 🔍 [Rechercher par nom/email____________]        │
+│          │                                                   │
+│          │ Vue: [📋 Liste] [📊 Kanban]                     │
+│          │                                                   │
+│          │ ┌──────────────────────────────────────────────┐│
+│          │ │☐│Artiste  │Platform│Budget│Agent│Status│Actions││
+│          │ ├──────────────────────────────────────────────┤│
+│          │ │☐│Artist1  │YouTube │2000€│Denis│New   │👁️📝✓❌││
+│          │ │☐│Artist2  │Meta    │1500€│Marine│Contact│👁️📝✓❌││
+│          │ │☐│Artist3  │Spotify │3000€│Denis│Qualified│👁️📝✓❌││
+│          │ │☐│Artist4  │TikTok  │2500€│Marine│Won│👁️📝✓❌││
+│          │ │  ...                                          ││
+│          │ └──────────────────────────────────────────────┘│
+│          │                                                   │
+│          │ Actions sélection: [✉️ Email] [🏷️ Tag] [❌ Suppr]│
+│          │                                                   │
+│          │ [◀ Précédent] Page 1 sur 8 [Suivant ▶]         │
+└─────────────────────────────────────────────────────────────┘
+Éléments interactifs
+3.1 Bouton "Nouveau lead"
+Element : <button class="btn btn-primary">+ Nouveau lead</button>
+Action onClick :
+javascriptconst handleNewLead = () => {
+  // Ouvrir modal formulaire création
+  setShowLeadForm(true);
+  setFormMode('create');
+  setEditingLead(null);
+};
+3.2 Bouton "Exporter"
+Element : <button class="btn btn-secondary">⬇️ Exporter</button>
+Action onClick :
+javascriptconst handleExport = async () => {
+  // Afficher menu contextuel
+  const exportType = await showContextMenu([
+    { label: 'CSV (Excel)', value: 'csv', icon: '📊' },
+    { label: 'PDF', value: 'pdf', icon: '📄' },
+    { label: 'JSON', value: 'json', icon: '🔧' }
+  ]);
+  
+  if (!exportType) return;
+  
+  try {
+    // Afficher loader
+    setExporting(true);
+    
+    // Appel API avec filtres actuels
+    const response = await axios.get('/api/v1/leads/export', {
+      params: {
+        format: exportType,
+        ...currentFilters,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      },
+      responseType: 'blob'
+    });
+    
+    // Télécharger le fichier
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `leads-${new Date().toISOString().split('T')[0]}.${exportType}`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+    
+    showToast(`Export ${exportType.toUpperCase()} réussi`, 'success');
+    
+  } catch (error) {
+    showToast('Erreur d\'export', 'error');
+  } finally {
+    setExporting(false);
+  }
+};
+Backend endpoint :
+javascript// Route GET /api/v1/leads/export
+router.get('/leads/export', requireAuth, async (req, res) => {
+  const { format, platform, status, assignedTo, startDate, endDate } = req.query;
+  
+  // Vérifier permissions
+  if (req.user.role !== 'admin' && assignedTo !== req.user.agent) {
+    return res.status(403).json({ error: 'Permission refusée' });
+  }
+  
+  // Query leads
+  const filters = buildFilters({ platform, status, assignedTo, startDate, endDate });
+  const leads = await Lead.find(filters).lean();
+  
+  // Déchiffrer données sensibles
+  const decryptedLeads = leads.map(lead => ({
+    ...lead,
+    email: decrypt(lead.email),
+    phone: lead.phone ? decrypt(lead.phone) : ''
+  }));
+  
+  // Générer export selon format
+  switch(format) {
+    case 'csv':
+      const csv = generateCSV(decryptedLeads);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=leads.csv');
+      return res.send(csv);
+      
+    case 'pdf':
+      const pdf = await generatePDF(decryptedLeads);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename=leads.pdf');
+      return res.send(pdf);
+      
+    case 'json':
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename=leads.json');
+      return res.json(decryptedLeads);
+  }
+});
+
+const generateCSV = (leads) => {
+  const headers = [
+    'ID', 'Nom artiste', 'Email', 'Téléphone', 'Plateforme', 
+    'Budget', 'Statut', 'Assigné à', 'Date création', 'Dernier contact'
+  ];
+  
+  const rows = leads.map(lead => [
+    lead._id,
+    lead.artistName,
+    lead.email,
+    lead.phone || '',
+    lead.platform,
+    lead.budget,
+    lead.status,
+    lead.assignedTo,
+    new Date(lead.createdAt).toLocaleDateString('fr-FR'),
+    lead.lastContactDate ? new Date(lead.lastContactDate).toLocaleDateString('fr-FR') : ''
+  ]);
+  
+  return [headers, ...rows]
+    .map(row => row.map(cell => `"${cell}"`).join(','))
+    .join('\n');
+};
+3.3 Bouton "Actualiser"
+Element : <button class="btn btn-icon" title="Actualiser">🔄</button>
+Action onClick :
+javascriptconst handleRefresh = async () => {
+  // Animation rotation icône
+  const btn = event.target;
+  btn.classList.add('rotating');
+  
+  try {
+    // Recharger les données
+    await fetchLeads(currentFilters, currentPage);
+    
+    showToast('Liste actualisée', 'success');
+    
+  } catch (error) {
+    showToast('Erreur d\'actualisation', 'error');
+  } finally {
+    setTimeout(() => {
+      btn.classList.remove('rotating');
+    }, 500);
+  }
+};
+Animation CSS :
+css@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.rotating {
+  animation: rotate 0.5s linear;
+}
+3.4 Filtres
+3.4.1 Filtre Plateforme
+Element :
+jsx<select onChange={handlePlatformFilter}>
+  <option value="all">Toutes plateformes</option>
+  <option value="youtube">🎬 YouTube Ads</option>
+  <option value="spotify">🎵 Spotify Ads</option>
+  <option value="meta">📘 Meta Ads</option>
+  <option value="tiktok">🎵 TikTok Ads</option>
+</select>
+Action onChange :
+javascriptconst handlePlatformFilter = (e) => {
+  const platform = e.target.value;
+  
+  setCurrentFilters(prev => ({
+    ...prev,
+    platform: platform === 'all' ? null : platform
+  }));
+  
+  // Reset pagination
+  setCurrentPage(1);
+  
+  // Fetch avec nouveaux filtres
+  fetchLeads({
+    ...currentFilters,
+    platform: platform === 'all' ? null : platform
+  }, 1);
+};
+3.4.2 Filtre Statut
+Element :
+jsx<select onChange={handleStatusFilter}>
+  <option value="all">Tous statuts</option>
+  <option value="new">🆕 Nouveau</option>
+  <option value="contacted">📞 Contacté</option>
+  <option value="qualified">⭐ Qualifié</option>
+  <option value="proposal_sent">📄 Proposition envoyée</option>
+  <option value="won">✅ Gagné</option>
+  <option value="lost">❌ Perdu</option>
+</select>
+Action : Identique à filtre plateforme
+3.4.3 Filtre Agent (admin uniquement)
+Condition d'affichage :
+jsx{user.role === 'admin' && (
+  <select onChange={handleAgentFilter}>
+    <option value="all">Tous agents</option>
+    <option value="denis">Denis</option>
+    <option value="marine">Marine</option>
+  </select>
+)}
+Logique pour agent non-admin :
+javascript// Si agent connecté, filtrer automatiquement sur ses leads
+useEffect(() => {
+  if (user.role === 'agent') {
+    setCurrentFilters(prev => ({
+      ...prev,
+      assignedTo: user.agent
+    }));
+  }
+}, [user]);
+3.4.4 Filtre Date
+Element : <button class="btn btn-icon">🗓️</button>
+Action onClick :
+javascriptconst handleDateFilter = () => {
+  setShowDatePicker(true);
+};
+Date Picker Modal :
+jsx<Modal show={showDatePicker} onClose={() => setShowDatePicker(false)}>
+  <h3>Filtrer par période</h3>
+  
+  <div className="date-range-picker">
+    <label>
+      Date de début
+      <input 
+        type="date" 
+        value={dateRange.start}
+        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+      />
+    </label>
+    
+    <label>
+      Date de fin
+      <input 
+        type="date" 
+        value={dateRange.end}
+        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+      />
+    </label>
+  </div>
+  
+  <div className="quick-filters">
+    <button onClick={() => applyQuickFilter('today')}>Aujourd'hui</button>
+    <button onClick={() => applyQuickFilter('week')}>Cette semaine</button>
+    <button onClick={() => applyQuickFilter('month')}>Ce mois</button>
+    <button onClick={() => applyQuickFilter('quarter')}>Ce trimestre</button>
+  </div>
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={() => setShowDatePicker(false)}>
+      Annuler
+    </button>
+    <button className="btn btn-primary" onClick={applyDateFilter}>
+      Appliquer
+    </button>
+  </div>
+</Modal>
+Action "Appliquer" :
+javascriptconst applyDateFilter = () => {
+  setCurrentFilters(prev => ({
+    ...prev,
+    startDate: dateRange.start,
+    endDate: dateRange.end
+  }));
+  
+  setShowDatePicker(false);
+  setCurrentPage(1);
+  
+  fetchLeads({
+    ...currentFilters,
+    startDate: dateRange.start,
+    endDate: dateRange.end
+  }, 1);
+};
+3.5 Barre de recherche
+Element :
+jsx<input 
+  type="text" 
+  placeholder="Rechercher par nom ou email..."
+  value={searchTerm}
+  onChange={handleSearch}
+/>
+Action onChange (debounced) :
+javascriptimport { debounce } from 'lodash';
+
+const handleSearch = debounce(async (e) => {
+  const term = e.target.value;
+  setSearchTerm(term);
+  
+  if (term.length < 2) {
+    // Si moins de 2 caractères, réinitialiser
+    fetchLeads(currentFilters, 1);
+    return;
+  }
+  
+  try {
+    const response = await axios.get('/api/v1/leads', {
+      params: {
+        ...currentFilters,
+        search: term,
+        page: 1,
+        limit: 20
+      }
+    });
+    
+    setLeads(response.data.data.leads);
+    setPagination(response.data.data.pagination);
+    
+  } catch (error) {
+    showToast('Erreur de recherche', 'error');
+  }
+}, 500); // Attendre 500ms après dernière frappe
+Backend search :
+javascript// Route GET /api/v1/leads?search=term
+if (search) {
+  query.$or = [
+    { artistName: { $regex: search, $options: 'i' } },
+    // Note: email est chiffré, ne peut pas être recherché directement
+    // Déchiffrer tous les emails est trop coûteux
+    // Solution: indexer une version hashée pour recherche
+    { emailHash: crypto.createHash('sha256').update(search.toLowerCase()).digest('hex') }
+  ];
+}
+3.6 Toggle Vue (Liste / Kanban)
+Element :
+jsx<div className="view-toggle">
+  <button 
+    className={viewMode === 'list' ? 'active' : ''}
+    onClick={() => handleViewChange('list')}
+  >
+    📋 Liste
+  </button>
+  <button 
+    className={viewMode === 'kanban' ? 'active' : ''}
+    onClick={() => handleViewChange('kanban')}
+  >
+    📊 Kanban
+  </button>
+</div>
+Action onClick :
+javascriptconst handleViewChange = (mode) => {
+  setViewMode(mode);
+  
+  // Sauvegarder préférence
+  localStorage.setItem('leads_view_mode', mode);
+  
+  if (mode === 'kanban') {
+    // Naviguer vers vue Kanban
+    navigate('/admin/leads/kanban');
+  }
+};
+3.7 Tableau des leads
+3.7.1 Checkbox en-tête (sélectionner tout)
+Element : <input type="checkbox" id="select-all" />
+Action onChange :
+javascriptconst handleSelectAll = (e) => {
+  if (e.target.checked) {
+    // Sélectionner tous les leads de la page
+    setSelectedLeads(leads.map(lead => lead._id));
+  } else {
+    // Désélectionner tous
+    setSelectedLeads([]);
+  }
+};
+3.7.2 Checkbox individuelle
+Element : <input type="checkbox" checked={isSelected} />
+Action onChange :
+javascriptconst handleSelectLead = (leadId) => {
+  setSelectedLeads(prev => {
+    if (prev.includes(leadId)) {
+      // Désélectionner
+      return prev.filter(id => id !== leadId);
+    } else {
+      // Sélectionner
+      return [...prev, leadId];
+    }
+  });
+};
+3.7.3 Colonne "Artiste"
+Action onClick (sur le nom) :
+javascriptconst handleLeadNameClick = (leadId) => {
+  // Ouvrir détail du lead
+  navigate(`/admin/lead/${leadId}`);
+};
+
+<td 
+  className="clickable" 
+  onClick={() => handleLeadNameClick(lead._id)}
+>
+  <strong>{lead.artistName}</strong>
+  <span className="email">{lead.email}</span>
+</td>
+3.7.4 Colonne "Plateforme"
+Affichage :
+jsx<td>
+  <span className={`platform-badge ${lead.platform}`}>
+    {platformIcons[lead.platform]} {lead.platform.toUpperCase()}
+  </span>
+</td>
+Pas d'action interactive
+3.7.5 Colonne "Budget"
+Affichage formaté :
+jsx<td className="budget-cell">
+  {new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(lead.budget)}
+</td>
+3.7.6 Colonne "Agent"
+Affichage :
+jsx<td>
+  <span className="agent-badge">
+    <img src={getAgentAvatar(lead.assignedTo)} alt="" />
+    {lead.assignedTo}
+  </span>
+</td>
+3.7.7 Colonne "Statut"
+Element : <select value={lead.status} onChange={(e) => handleStatusChange(lead._id, e.target.value)}>
+Action onChange :
+javascriptconst handleStatusChange = async (leadId, newStatus) => {
+  // Confirmation si changement vers "won" ou "lost"
+  if (['won', 'lost'].includes(newStatus)) {
+    const confirmed = await showConfirmModal({
+      title: `Marquer comme ${newStatus === 'won' ? 'gagné' : 'perdu'} ?`,
+      message: newStatus === 'won' 
+        ? 'Une campagne sera créée automatiquement.'
+        : 'Merci d\'indiquer la raison de la perte.',
+      confirmText: 'Confirmer',
+      cancelText: 'Annuler'
+    });
+    
+    if (!confirmed) return;
+    
+    if (newStatus === 'won') {
+      // Ouvrir modal montant du deal
+      const dealValue = await showDealValueModal(leadId);
+      if (!dealValue) return;
+      
+      try {
+        await axios.post(`/api/v1/leads/${leadId}/won`, { dealValue });
+        showToast('Lead marqué comme gagné !', 'success');
+        fetchLeads(currentFilters, currentPage);
+      } catch (error) {
+        showToast('Erreur', 'error');
+      }
+      
+    } else if (newStatus === 'lost') {
+      // Ouvrir modal raison de perte
+      const lostReason = await showLostReasonModal();
+      if (!lostReason) return;
+      
+      try {
+        await axios.post(`/api/v1/leads/${leadId}/lost`, { reason: lostReason });
+        showToast('Lead marqué comme perdu', 'info');
+        fetchLeads(currentFilters, currentPage);
+      } catch (error) {
+        showToast('Erreur', 'error');
+      }
+    }
+    
+    return;
+  }
+  
+  // Changement de statut standard
+  try {
+    await axios.patch(`/api/v1/leads/${leadId}`, {
+      status: newStatus
+    });
+    
+    // Mise à jour optimiste
+    setLeads(prev => prev.map(l => 
+      l._id === leadId ? { ...l, status: newStatus } : l
+    ));
+    
+    showToast('Statut mis à jour', 'success');
+    
+  } catch (error) {
+    showToast('Erreur de mise à jour', 'error');
+  }
+};
+Modal Deal Value :
+jsx<Modal>
+  <h3>Lead gagné 🎉</h3>
+  <p>Félicitations ! Quel est le montant du contrat ?</p>
+  
+  <label>
+    Montant du deal (€)
+    <input 
+      type="number" 
+      min="500"
+      step="100"
+      value={dealValue}
+      onChange={(e) => setDealValue(e.target.value)}
+    />
+  </label>
+  
+  <label>
+    Date de début de campagne
+    <input 
+      type="date" 
+      value={startDate}
+      onChange={(e) => setStartDate(e.target.value)}
+    />
+  </label>
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={onCancel}>Annuler</button>
+    <button className="btn btn-primary" onClick={onConfirm}>Créer campagne</button>
+  </div>
+</Modal>
+Modal Lost Reason :
+jsx<Modal>
+  <h3>Lead perdu</h3>
+  <p>Merci de nous aider à comprendre pourquoi</p>
+  
+  <select value={lostReason} onChange={(e) => setLostReason(e.target.value)}>
+    <option value="">Sélectionnez une raison</option>
+    <option value="budget">Budget insuffisant</option>
+    <option value="timing">Mauvais timing</option>
+    <option value="competitor">Choisi un concurrent</option>
+    <option value="no_response">Aucune réponse</option>
+    <option value="quality">Qualité musicale</option>
+    <option value="other">Autre</option>
+  </select>
+  
+  {lostReason === 'other' && (
+    <textarea 
+      placeholder="Précisez..."
+      value={lostReasonDetails}
+      onChange={(e) => setLostReasonDetails(e.target.value)}
+    />
+  )}
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={onCancel}>Annuler</button>
+    <button className="btn btn-primary" onClick={onConfirm}>Confirmer</button>
+  </div>
+</Modal>
+3.7.8 Colonne "Actions"
+Boutons d'action :
+jsx<td className="actions-cell">
+  <button 
+    className="btn-icon" 
+    title="Voir détail"
+    onClick={() => handleViewLead(lead._id)}
+  >
+    👁️
+  </button>
+  
+  <button 
+    className="btn-icon" 
+    title="Ajouter note"
+    onClick={() => handleQuickNote(lead._id)}
+  >
+    📝
+  </button>
+  
+  <button 
+    className="btn-icon success" 
+    title="Marquer gagné"
+    onClick={() => handleStatusChange(lead._id, 'won')}
+  >
+    ✓
+  </button>
+  
+  <button 
+    className="btn-icon danger" 
+    title="Marquer perdu"
+    onClick={() => handleStatusChange(lead._id, 'lost')}
+  >
+    ❌
+  </button>
+</td>
+Action "Ajouter note rapide" :
+javascriptconst handleQuickNote = (leadId) => {
+  setQuickNoteLead(leadId);
+  setShowQuickNoteModal(true);
+};
+Modal Quick Note :
+jsx<Modal show={showQuickNoteModal} onClose={() => setShowQuickNoteModal(false)}>
+  <h3>Note rapide</h3>
+  
+  <textarea 
+    placeholder="Écrivez votre note..."
+    value={quickNoteContent}
+    onChange={(e) => setQuickNoteContent(e.target.value)}
+    rows="4"
+  />
+  
+  <select value={quickNoteType} onChange={(e) => setQuickNoteType(e.target.value)}>
+    <option value="note">📝 Note</option>
+    <option value="email">✉️ Email</option>
+    <option value="call">📞 Appel</option>
+    <option value="meeting">🤝 Réunion</option>
+  </select>
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={() => setShowQuickNoteModal(false)}>
+      Annuler
+    </button>
+    <button className="btn btn-primary" onClick={saveQuickNote}>
+      Sauvegarder
+    </button>
+  </div>
+</Modal>
+Action "Sauvegarder note" :
+javascriptconst saveQuickNote = async () => {
+  if (!quickNoteContent.trim()) {
+    showToast('La note ne peut pas être vide', 'warning');
+    return;
+  }
+  
+  try {
+    await axios.post(`/api/v1/leads/${quickNoteLead}/notes`, {
+      content: quickNoteContent,
+      type: quickNoteType
+    });
+    
+    showToast('Note ajoutée', 'success');
+    setShowQuickNoteModal(false);
+    setQuickNoteContent('');
+    
+    // Rafraîchir la liste si le lead est visible
+    fetchLeads(currentFilters, currentPage);
+    
+  } catch (error) {
+    showToast('Erreur d\'ajout de note', 'error');
+  }
+};
+3.8 Actions sélection multiple
+Barre d'actions (visible si leads sélectionnés) :
+jsx{selectedLeads.length > 0 && (
+  <div className="bulk-actions-bar">
+    <span>{selectedLeads.length} lead(s) sélectionné(s)</span>
+    
+    <button onClick={handleBulkEmail}>
+      ✉️ Envoyer email
+    </button>
+    
+    <button onClick={handleBulkTag}>
+      🏷️ Ajouter tag
+    </button>
+    
+    <button onClick={handleBulkReassign}>
+      👤 Réassigner
+    </button>
+    
+    <button onClick={handleBulkDelete} className="danger">
+      ❌ Supprimer
+    </button>
+    
+    <button onClick={() => setSelectedLeads([])} className="btn-link">
+      Annuler
+    </button>
+  </div>
+)}
+3.8.1 Action "Envoyer email"
+javascriptconst handleBulkEmail = () => {
+  setShowBulkEmailModal(true);
+};
+Modal Email Bulk :
+jsx<Modal show={showBulkEmailModal} onClose={() => setShowBulkEmailModal(false)}>
+  <h3>Envoyer un email à {selectedLeads.length} lead(s)</h3>
+  
+  <select value={emailTemplate} onChange={(e) => setEmailTemplate(e.target.value)}>
+    <option value="">Sélectionner un template</option>
+    <option value="followup">Follow-up initial</option>
+    <option value="reminder">Rappel</option>
+    <option value="offer">Offre spéciale</option>
+    <option value="custom">Email personnalisé</option>
+  </select>
+  
+  {emailTemplate === 'custom' && (
+    <>
+      <input 
+        type="text" 
+        placeholder="Objet" 
+        value={emailSubject}
+        onChange={(e) => setEmailSubject(e.target.value)}
+      />
+      
+      <textarea 
+        placeholder="Message..."
+        value={emailBody}
+        onChange={(e) => setEmailBody(e.target.value)}
+        rows="10"
+      />
+      
+      <p className="help-text">
+        Variables disponibles: {'{'}artistName{'}'}, {'{'}budget{'}'}, {'{'}platform{'}'}
+      </p>
+    </>
+  )}
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={() => setShowBulkEmailModal(false)}>
+      Annuler
+    </button>
+    <button className="btn btn-primary" onClick={sendBulkEmail}>
+      Envoyer à {selectedLeads.length} lead(s)
+    </button>
+  </div>
+</Modal>
+Action "Envoyer" :
+javascriptconst sendBulkEmail = async () => {
+  try {
+    setEmailSending(true);
+    
+    await axios.post('/api/v1/leads/bulk-email', {
+      leadIds: selectedLeads,
+      templateId: emailTemplate !== 'custom' ? emailTemplate : null,
+      subject: emailSubject,
+      body: emailBody
+    });
+    
+    showToast(`Email envoyé à ${selectedLeads.length} lead(s)`, 'success');
+    setShowBulkEmailModal(false);
+    setSelectedLeads([]);
+    
+  } catch (error) {
+    showToast('Erreur d\'envoi d\'email', 'error');
+  } finally {
+    setEmailSending(false);
+  }
+};
+3.8.2 Action "Ajouter tag"
+javascriptconst handleBulkTag = async () => {
+  const tag = await showPromptModal({
+    title: 'Ajouter un tag',
+    message: 'Entrez le nom du tag',
+    placeholder: 'Ex: VIP, Urgent, Relance...'
+  });
+  
+  if (!tag) return;
+  
+  try {
+    await axios.patch('/api/v1/leads/bulk-update', {
+      leadIds: selectedLeads,
+      update: {
+        $addToSet: { tags: tag }
+      }
+    });
+    
+    showToast(`Tag "${tag}" ajouté`, 'success');
+    setSelectedLeads([]);
+    fetchLeads(currentFilters, currentPage);
+    
+  } catch (error) {
+    showToast('Erreur d\'ajout de tag', 'error');
+  }
+};
+3.8.3 Action "Réassigner" (admin uniquement)
+javascriptconst handleBulkReassign = async () => {
+  if (user.role !== 'admin') {
+    showToast('Permission refusée', 'error');
+    return;
+  }
+  
+  const newAgent = await showSelectModal({
+    title: 'Réassigner les leads',
+    message: `Réassigner ${selectedLeads.length} lead(s) à :`,
+    options: [
+      { value: 'denis', label: 'Denis' },
+      { value: 'marine', label: 'Marine' }
+    ]
+  });
+  
+  if (!newAgent) return;
+  
+  try {
+    await axios.patch('/api/v1/leads/bulk-update', {
+      leadIds: selectedLeads,
+      update: {
+        assignedTo: newAgent
+      }
+    });
+    
+    showToast(`Leads réassignés à ${newAgent}`, 'success');
+    setSelectedLeads([]);
+    fetchLeads(currentFilters, currentPage);
+    
+  } catch (error) {
+    showToast('Erreur de réassignation', 'error');
+  }
+};
+3.8.4 Action "Supprimer"
+javascriptconst handleBulkDelete = async () => {
+  const confirmed = await showConfirmModal({
+    title: 'Supprimer les leads',
+    message: `Êtes-vous sûr de vouloir supprimer ${selectedLeads.length} lead(s) ?`,
+    confirmText: 'Oui, supprimer',
+    cancelText: 'Annuler',
+    variant: 'danger'
+  });
+  
+  if (!confirmed) return;
+  
+  try {
+    await axios.delete('/api/v1/leads/bulk-delete', {
+      data: { leadIds: selectedLeads }
+    });
+    
+    showToast(`${selectedLeads.length} lead(s) supprimé(s)`, 'success');
+    setSelectedLeads([]);
+    fetchLeads(currentFilters, currentPage);
+    
+  } catch (error) {
+    showToast('Erreur de suppression', 'error');
+  }
+};
+3.9 Pagination
+3.9.1 Bouton "Précédent"
+Element : <button disabled={currentPage === 1}>◀ Précédent</button>
+Action onClick :
+javascriptconst handlePreviousPage = () => {
+  if (currentPage > 1) {
+    setCurrentPage(currentPage - 1);
+    fetchLeads(currentFilters, currentPage - 1);
+    
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+};
+3.9.2 Indicateur page courante
+Element : <span>Page {currentPage} sur {totalPages}</span>
+Pas d'action
+3.9.3 Bouton "Suivant"
+Element : <button disabled={currentPage === totalPages}>Suivant ▶</button>
+Action onClick :
+javascriptconst handleNextPage = () => {
+  if (currentPage < totalPages) {
+    setCurrentPage(currentPage + 1);
+    fetchLeads(currentFilters, currentPage + 1);
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+};
+3.9.4 Sélecteur items par page
+Element :
+jsx<select value={itemsPerPage} onChange={handleItemsPerPageChange}>
+  <option value="10">10 par page</option>
+  <option value="20">20 par page</option>
+  <option value="50">50 par page</option>
+  <option value="100">100 par page</option>
+</select>
+Action onChange :
+javascriptconst handleItemsPerPageChange = (e) => {
+  const newLimit = parseInt(e.target.value);
+  setItemsPerPage(newLimit);
+  setCurrentPage(1);
+  
+  fetchLeads(currentFilters, 1, newLimit);
+};
+```
+
+---
+
+## 4. DÉTAIL D'UN LEAD (LeadDetail)
+
+### Composant : `/src/components/admin/leads/LeadDetail.jsx`
+
+### Layout
+```
+┌──────────────────────────────────────────────────────────┐
+│ Sidebar │ Lead: Artist Name                              │
+│         │ [< Retour] Status: New                         │
+│         │                                                 │
+│         │ Actions: [✉️ Email] [📞 Call] [✓ Won] [❌ Lost]│
+│         │                                                 │
+│         │ ┌────────────────┐ ┌───────────────────────┐  │
+│         │ │ 📋 Infos client│ │ 🎬 Détails campagne   │  │
+│         │ │                │ │                       │  │
+│         │ │ 🎤 Artist Name │ │ Plateforme: YouTube   │  │
+│         │ │ 📧 email@...   │ │ Budget: 2000€        │  │
+│         │ │ 📞 +33 6 ...   │ │ Type: Awareness      │  │
+│         │ │ 🌍 France      │ │ Vues estimées: 100K  │  │
+│         │ │ 📅 15/01/2025  │ │ CPV estimé: 0.02€    │  │
+│         │ │                │ │                       │  │
+│         │ │ Tags: [VIP]    │ │ 👤 Assigné à: Denis  │  │
+│         │ │ [+ Tag]        │ │ [Réassigner]         │  │
+│         │ └────────────────┘ └───────────────────────┘  │
+│         │                                                 │
+│         │ ┌──────────────────────────────────────────┐  │
+│         │ │ 📝 Timeline & Notes                      │  │
+│         │ │                                          │  │
+│         │ │ 🕒 15/01 10:30 - Lead créé via simulator │  │
+│         │ │    Source: Simulator                     │  │
+│         │ │    Budget demandé: 2000€                 │  │
+│         │ │                                          │  │
+│         │ │ 📧 16/01 09:15 - Email envoyé (Denis)    │  │
+│         │ │    "Bonjour Artist Name, merci pour..."  │  │
+│         │ │    [Voir email complet]                  │  │
+│         │ │                                          │  │
+│         │ │ 📞 17/01 14:30 - Appel (Denis)           │  │
+│         │ │    "Très intéressé, souhaite démarrer en"│  │
+│         │ │    "février. Budget OK."                 │  │
+│         │ │    [Modifier] [Supprimer]                │  │
+│         │ │                                          │  │
+│         │ │ ➕ Ajouter une note...                   │  │
+│         │ │    [Textarea]                            │  │
+│         │ │    Type: [Note ▼]                        │  │
+│         │ │    [Sauvegarder]                         │  │
+│         │ └──────────────────────────────────────────┘  │
+│         │                                                 │
+│         │ ┌──────────────────────────────────────────┐  │
+│         │ │ 📊 Historique des changements            │  │
+│         │ │ [Voir audit trail complet]               │  │
+│         │ └──────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+Éléments interactifs
+4.1 Bouton "Retour"
+Element : <button className="btn-back">< Retour</button>
+Action onClick :
+javascriptconst handleBack = () => {
+  // Revenir à la liste avec filtres conservés
+  navigate('/admin/leads' + location.search);
+};
+4.2 Badge Statut
+Element : <span className={status-badge ${lead.status}}>{lead.status}</span>
+Action onClick :
+javascriptconst handleStatusBadgeClick = () => {
+  // Ouvrir menu déroulant de changement de statut
+  setShowStatusMenu(true);
+};
+Menu contextuel :
+jsx<ContextMenu show={showStatusMenu} onClose={() => setShowStatusMenu(false)}>
+  <button onClick={() => changeStatus('new')}>🆕 Nouveau</button>
+  <button onClick={() => changeStatus('contacted')}>📞 Contacté</button>
+  <button onClick={() => changeStatus('qualified')}>⭐ Qualifié</button>
+  <button onClick={() => changeStatus('proposal_sent')}>📄 Proposition envoyée</button>
+  <hr />
+  <button onClick={() => changeStatus('won')} className="success">✅ Gagné</button>
+  <button onClick={() => changeStatus('lost')} className="danger">❌ Perdu</button>
+</ContextMenu>
+4.3 Boutons d'action rapide
+4.3.1 Bouton "Email"
+Element : <button className="btn btn-secondary">✉️ Email</button>
+Action onClick :
+javascriptconst handleSendEmail = () => {
+  setShowEmailModal(true);
+};
+Modal Email :
+jsx<Modal show={showEmailModal} onClose={() => setShowEmailModal(false)} size="large">
+  <h3>Envoyer un email à {lead.artistName}</h3>
+  
+  <div className="email-form">
+    <div className="field">
+      <label>À</label>
+      <input type="email" value={lead.email} disabled />
+    </div>
+    
+    <div className="field">
+      <label>Template</label>
+      <select value={selectedTemplate} onChange={(e) => loadEmailTemplate(e.target.value)}>
+        <option value="">Email personnalisé</option>
+        <option value="initial_contact">Premier contact</option>
+        <option value="followup">Follow-up</option>
+        <option value="proposal">Envoi proposition</option>
+        <option value="reminder">Rappel</option>
+      </select>
+    </div>
+    
+    <div className="field">
+      <label>Objet</label>
+      <input 
+        type="text" 
+        value={emailSubject}
+        onChange={(e) => setEmailSubject(e.target.value)}
+        placeholder="Objet de l'email"
+      />
+    </div>
+    
+    <div className="field">
+      <label>Message</label>
+      <textarea 
+        value={emailBody}
+        onChange={(e) => setEmailBody(e.target.value)}
+        rows="10"
+        placeholder="Votre message..."
+      />
+      
+      <div className="editor-toolbar">
+        <button onClick={() => insertVariable('{artistName}')}>Nom artiste</button>
+        <button onClick={() => insertVariable('{budget}')}>Budget</button>
+        <button onClick={() => insertVariable('{platform}')}>Plateforme</button>
+      </div>
+    </div>
+    
+    <div className="field">
+      <label>
+        <input 
+          type="checkbox" 
+          checked={saveAsNote}
+          onChange={(e) => setSaveAsNote(e.target.checked)}
+        />
+        Sauvegarder comme note dans la timeline
+      </label>
+    </div>
+  </div>
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={() => setShowEmailModal(false)}>
+      Annuler
+    </button>
+    <button className="btn btn-primary" onClick={sendEmail} disabled={sending}>
+      {sending ? 'Envoi...' : 'Envoyer'}
+    </button>
+  </div>
+</Modal>
+Action "Envoyer" :
+javascriptconst sendEmail = async () => {
+  if (!emailSubject.trim() || !emailBody.trim()) {
+    showToast('Veuillez remplir l\'objet et le message', 'warning');
+    return;
+  }
+  
+  try {
+    setSending(true);
+    
+    // Remplacer variables
+    let finalBody = emailBody;
+    finalBody = finalBody.replace(/{artistName}/g, lead.artistName);
+    finalBody = finalBody.replace(/{budget}/g, lead.budget);
+    finalBody = finalBody.replace(/{platform}/g, lead.platform);
+    
+    // Envoyer via API
+    await axios.post('/api/v1/leads/send-email', {
+      leadId: lead._id,
+      subject: emailSubject,
+      body: finalBody
+    });
+    
+    // Ajouter note si demandé
+    if (saveAsNote) {
+      await axios.post(`/api/v1/leads/${lead._id}/notes`, {
+        content: `Email envoyé: "${emailSubject}"\n\n${finalBody}`,
+        type: 'email'
+      });
+    }
+    
+    showToast('Email envoyé', 'success');
+    setShowEmailModal(false);
+    
+    // Rafraîchir timeline
+    fetchLead(lead._id);
+    
+  } catch (error) {
+    showToast('Erreur d\'envoi d\'email', 'error');
+  } finally {
+    setSending(false);
+  }
+};
+4.3.2 Bouton "Call"
+Element : <button className="btn btn-secondary">📞 Call</button>
+Action onClick :
+javascriptconst handleScheduleCall = () => {
+  setShowCallModal(true);
+};
+Modal Call :
+jsx<Modal show={showCallModal} onClose={() => setShowCallModal(false)}>
+  <h3>Planifier un appel avec {lead.artistName}</h3>
+  
+  <div className="call-options">
+    <button 
+      className={callAction === 'schedule' ? 'active' : ''}
+      onClick={() => setCallAction('schedule')}
+    >
+      📅 Planifier
+    </button>
+    <button 
+      className={callAction === 'log' ? 'active' : ''}
+      onClick={() => setCallAction('log')}
+    >
+      📝 Logger un appel passé
+    </button>
+  </div>
+  
+  {callAction === 'schedule' ? (
+    <>
+      <label>
+        Date et heure
+        <input 
+          type="datetime-local" 
+          value={callDateTime}
+          onChange={(e) => setCallDateTime(e.target.value)}
+          min={new Date().toISOString().slice(0, 16)}
+        />
+      </label>
+      
+      <label>
+        Numéro à appeler
+        <input 
+          type="tel" 
+          value={lead.phone}
+          disabled
+        />
+      </label>
+      
+      <label>
+        Notes / Agenda
+        <textarea 
+          placeholder="Points à aborder..."
+          value={callAgenda}
+          onChange={(e) => setCallAgenda(e.target.value)}
+          rows="4"
+        />
+      </label>
+      
+      <label>
+        <input 
+          type="checkbox" 
+          checked={addToCalendar}
+          onChange={(e) => setAddToCalendar(e.target.checked)}
+        />
+        Ajouter à mon calendrier Google
+      </label>
+    </>
+  ) : (
+    <>
+      <label>
+        Date et heure de l'appel
+        <input 
+          type="datetime-local" 
+          value={callDateTime}
+          onChange={(e) => setCallDateTime(e.target.value)}
+          max={new Date().toISOString().slice(0, 16)}
+        />
+      </label>
+      
+      <label>
+        Durée (minutes)
+        <input 
+          type="number" 
+          value={callDuration}
+          onChange={(e) => setCallDuration(e.target.value)}
+          min="1"
+          max="180"
+        />
+      </label>
+      
+      <label>
+        Résumé de l'appel
+        <textarea 
+          placeholder="Résumé de l'échange..."
+          value={callSummary}
+          onChange={(e) => setCallSummary(e.target.value)}
+          rows="6"
+        />
+      </label>
+      
+      <label>
+        Résultat
+        <select value={callOutcome} onChange={(e) => setCallOutcome(e.target.value)}>
+          <option value="">Sélectionner</option>
+          <option value="positive">✅ Positif - intéressé</option>
+          <option value="neutral">➖ Neutre - à recontacter</option>
+          <option value="negative">❌ Négatif - pas intéressé</option>
+        </select>
+      </label>
+    </>
+  )}
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={() => setShowCallModal(false)}>
+      Annuler
+    </button>
+    <button className="btn btn-primary" onClick={saveCall}>
+      {callAction === 'schedule' ? 'Planifier' : 'Enregistrer'}
+    </button>
+  </div>
+</Modal>
+Action "Planifier/Enregistrer" :
+javascriptconst saveCall = async () => {
+  try {
+    if (callAction === 'schedule') {
+      // Créer event dans DB
+      await axios.post(`/api/v1/leads/${lead._id}/schedule-call`, {
+        dateTime: callDateTime,
+        agenda: callAgenda,
+        addToCalendar
+      });
+      
+      if (addToCalendar) {
+        // Créer event Google Calendar via API
+        await axios.post('/api/v1/calendar/create-event', {
+          summary: `Appel avec ${lead.artistName}`,
+          description: callAgenda,
+          start: callDateTime,
+          attendees: [lead.email]
+        });
+      }
+      
+      showToast('Appel planifié', 'success');
+      
+    } else {
+      // Logger appel passé
+      await axios.post(`/api/v1/leads/${lead._id}/notes`, {
+        content: `Appel téléphonique (${callDuration} min)\n\n${callSummary}\n\nRésultat: ${callOutcome}`,
+        type: 'call'
+      });
+      
+      showToast('Appel enregistré', 'success');
+    }
+    
+    setShowCallModal(false);
+    fetchLead(lead._id);
+    
+  } catch (error) {
+    showToast('Erreur', 'error');
+  }
+};
+4.3.3 Bouton "Won"
+Element : <button className="btn btn-success">✓ Won</button>
+Action : Identique à changement de statut vers "won" (voir section 3.7.7)
+4.3.4 Bouton "Lost"
+Element : <button className="btn btn-danger">❌ Lost</button>
+Action : Identique à changement de statut vers "lost" (voir section 3.7.7)
+4.4 Card "Infos client"
+4.4.1 Nom de l'artiste
+Element : <h4>{lead.artistName}</h4>
+Action double-click :
+javascriptconst handleArtistNameDblClick = () => {
+  setEditingField('artistName');
+  setEditValue(lead.artistName);
+};
+Mode édition :
+jsx{editingField === 'artistName' ? (
+  <input 
+    type="text" 
+    value={editValue}
+    onChange={(e) => setEditValue(e.target.value)}
+    onBlur={saveFieldEdit}
+    onKeyPress={(e) => e.key === 'Enter' && saveFieldEdit()}
+    autoFocus
+  />
+) : (
+  <h4 onDoubleClick={handleArtistNameDblClick}>
+    {lead.artistName}
+  </h4>
+)}
+Action "Sauvegarder" :
+javascriptconst saveFieldEdit = async () => {
+  if (!editValue.trim()) {
+    showToast('Le champ ne peut pas être vide', 'warning');
+    setEditingField(null);
+    return;
+  }
+  
+  if (editValue === lead[editingField]) {
+    // Pas de changement
+    setEditingField(null);
+    return;
+  }
+  
+  try {
+    await axios.patch(`/api/v1/leads/${lead._id}`, {
+      [editingField]: editValue
+    });
+    
+    // Mise à jour optimiste
+    setLead(prev => ({ ...prev, [editingField]: editValue }));
+    
+    showToast('Champ mis à jour', 'success');
+    setEditingField(null);
+    
+  } catch (error) {
+    showToast('Erreur de mise à jour', 'error');
+  }
+};
+4.4.2 Email
+Element : <a href={mailto:${lead.email}}>{lead.email}</a>
+Action click : Ouvre client email par défaut
+Action copy icon :
+jsx<span className="copy-icon" onClick={() => copyToClipboard(lead.email)}>
+  📋
+</span>
+javascriptconst copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copié dans le presse-papier', 'success');
+  } catch (error) {
+    showToast('Erreur de copie', 'error');
+  }
+};
+4.4.3 Téléphone
+Element : <a href={tel:${lead.phone}}>{lead.phone}</a>
+Action click : Lance appel (mobile) ou copie (desktop)
+4.4.4 Tags
+Liste de tags :
+jsx<div className="tags-list">
+  {lead.tags.map((tag, index) => (
+    <span key={index} className="tag">
+      {tag}
+      <button 
+        className="tag-remove"
+        onClick={() => removeTag(tag)}
+      >
+        ×
+      </button>
+    </span>
+  ))}
+  
+  <button className="btn-add-tag" onClick={() => setShowAddTagModal(true)}>
+    + Tag
+  </button>
+</div>
+Action "Supprimer tag" :
+javascriptconst removeTag = async (tagToRemove) => {
+  try {
+    await axios.patch(`/api/v1/leads/${lead._id}`, {
+      $pull: { tags: tagToRemove }
+    });
+    
+    setLead(prev => ({
+      ...prev,
+      tags: prev.tags.filter(t => t !== tagToRemove)
+    }));
+    
+    showToast('Tag supprimé', 'success');
+    
+  } catch (error) {
+    showToast('Erreur', 'error');
+  }
+};
+Action "+ Tag" :
+javascriptconst handleAddTag = async () => {
+  const newTag = await showPromptModal({
+    title: 'Ajouter un tag',
+    placeholder: 'Nom du tag'
+  });
+  
+  if (!newTag) return;
+  
+  try {
+    await axios.patch(`/api/v1/leads/${lead._id}`, {
+      $addToSet: { tags: newTag }
+    });
+    
+    setLead(prev => ({
+      ...prev,
+      tags: [...prev.tags, newTag]
+    }));
+    
+    showToast('Tag ajouté', 'success');
+    
+  } catch (error) {
+    showToast('Erreur', 'error');
+  }
+};
+4.5 Card "Détails campagne"
+4.5.1 Bouton "Réassigner" (admin uniquement)
+Element : <button className="btn btn-sm">Réassigner</button>
+Action onClick :
+javascriptconst handleReassignLead = async () => {
+  if (user.role !== 'admin') {
+    showToast('Permission refusée', 'error');
+    return;
+  }
+  
+  const newAgent = await showSelectModal({
+    title: 'Réassigner le lead',
+    options: [
+      { value: 'denis', label: 'Denis' },
+      { value: 'marine', label: 'Marine' }
+    ],
+    currentValue: lead.assignedTo
+  });
+  
+  if (!newAgent || newAgent === lead.assignedTo) return;
+  
+  try {
+    await axios.patch(`/api/v1/leads/${lead._id}`, {
+      assignedTo: newAgent
+    });
+    
+    setLead(prev => ({ ...prev, assignedTo: newAgent }));
+    
+    showToast(`Lead réassigné à ${newAgent}`, 'success');
+    
+  } catch (error) {
+    showToast('Erreur de réassignation', 'error');
+  }
+};
+4.6 Timeline & Notes
+4.6.1 Items de timeline (affichage seul)
+Pas d'action sauf pour les notes :
+Actions sur notes :
+jsx{note.type === 'note' && (
+  <div className="note-actions">
+    <button onClick={() => editNote(note)}>Modifier</button>
+    <button onClick={() => deleteNote(note._id)}>Supprimer</button>
+  </div>
+)}
+Action "Modifier note" :
+javascriptconst editNote = (note) => {
+  setEditingNote(note);
+  setNoteContent(note.content);
+  setShowEditNoteModal(true);
+};
+
+const saveNoteEdit = async () => {
+  try {
+    await axios.patch(`/api/v1/leads/${lead._id}/notes/${editingNote._id}`, {
+      content: noteContent
+    });
+    
+    // Mettre à jour localement
+    setLead(prev => ({
+      ...prev,
+      notes: prev.notes.map(n => 
+        n._id === editingNote._id 
+          ? { ...n, content: noteContent }
+          : n
+      )
+    }));
+    
+    showToast('Note mise à jour', 'success');
+    setShowEditNoteModal(false);
+    
+  } catch (error) {
+    showToast('Erreur', 'error');
+  }
+};
+Action "Supprimer note" :
+javascriptconst deleteNote = async (noteId) => {
+  const confirmed = await showConfirmModal({
+    title: 'Supprimer la note',
+    message: 'Êtes-vous sûr ?',
+    confirmText: 'Supprimer',
+    variant: 'danger'
+  });
+  
+  if (!confirmed) return;
+  
+  try {
+    await axios.delete(`/api/v1/leads/${lead._id}/notes/${noteId}`);
+    
+    setLead(prev => ({
+      ...prev,
+      notes: prev.notes.filter(n => n._id !== noteId)
+    }));
+    
+    showToast('Note supprimée', 'success');
+    
+  } catch (error) {
+    showToast('Erreur', 'error');
+  }
+};
+4.6.2 Formulaire "Ajouter une note"
+Textarea :
+jsx<textarea 
+  placeholder="Écrivez votre note..."
+  value={newNoteContent}
+  onChange={(e) => setNewNoteContent(e.target.value)}
+  rows="4"
+/>
+Sélecteur type :
+jsx<select value={newNoteType} onChange={(e) => setNewNoteType(e.target.value)}>
+  <option value="note">📝 Note</option>
+  <option value="email">✉️ Email</option>
+  <option value="call">📞 Appel</option>
+  <option value="meeting">🤝 Réunion</option>
+</select>
+Bouton "Sauvegarder" :
+javascriptconst saveNewNote = async () => {
+  if (!newNoteContent.trim()) {
+    showToast('La note ne peut pas être vide', 'warning');
+    return;
+  }
+  
+  try {
+    const response = await axios.post(`/api/v1/leads/${lead._id}/notes`, {
+      content: newNoteContent,
+      type: newNoteType
+    });
+    
+    // Ajouter à la timeline
+    setLead(prev => ({
+      ...prev,
+      notes: [...prev.notes, response.data.data.note]
+    }));
+    
+    // Réinitialiser formulaire
+    setNewNoteContent('');
+    setNewNoteType('note');
+    
+    showToast('Note ajoutée', 'success');
+    
+    // Scroll vers le bas de la timeline
+    const timeline = document.querySelector('.timeline');
+    timeline.scrollTop = timeline.scrollHeight;
+    
+  } catch (error) {
+    showToast('Erreur d\'ajout de note', 'error');
+  }
+};
+Raccourcis clavier :
+javascriptuseEffect(() => {
+  const handleKeyPress = (e) => {
+    // Ctrl/Cmd + Enter pour sauvegarder
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      saveNewNote();
+    }
+  };
+  
+  document.addEventListener('keydown', handleKeyPress);
+  
+  return () => {
+    document.removeEventListener('keydown', handleKeyPress);
+  };
+}, [newNoteContent, newNoteType]);
+4.7 Section "Historique des changements"
+Bouton "Voir audit trail" :
+javascriptconst handleViewAuditTrail = () => {
+  setShowAuditModal(true);
+  fetchAuditLogs(lead._id);
+};
+Modal Audit Trail :
+jsx<Modal show={showAuditModal} onClose={() => setShowAuditModal(false)} size="large">
+  <h3>Historique complet des modifications</h3>
+  
+  <div className="audit-trail">
+    {auditLogs.map((log, index) => (
+      <div key={index} className="audit-entry">
+        <div className="audit-header">
+          <span className="audit-action">{log.action}</span>
+          <span className="audit-user">{log.userId}</span>
+          <span className="audit-date">{formatDateTime(log.timestamp)}</span>
+        </div>
+        
+        {log.changes && (
+          <div className="audit-changes">
+            <strong>Modifications :</strong>
+            {Object.entries(log.changes.before).map(([key, value]) => (
+              <div key={key} className="change-item">
+                <span className="field-name">{key}:</span>
+                <span className="old-value">{JSON.stringify(value)}</span>
+                <span className="arrow">→</span>
+                <span className="new-value">{JSON.stringify(log.changes.after[key])}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <div className="audit-meta">
+          <span>IP: {log.ip}</span>
+          <span>User-Agent: {log.userAgent}</span>
+        </div>
+      </div>
+    ))}
+  </div>
+  
+  <div className="modal-actions">
+    <button className="btn btn-secondary" onClick={() => setShowAuditModal(false)}>
+      Fermer
+    </button>
+    <button className="btn btn-primary" onClick={exportAuditTrail}>
+      📥 Exporter
+    </button>
+  </div>
+</Modal>
+Fetch audit logs :
+javascriptconst fetchAuditLogs = async (leadId) => {
+  try {
+    const response = await axios.get('/api/v1/audit-logs', {
+      params: {
+        resource: 'lead',
+        resourceId: leadId,
+        limit: 100
+      }
+    });
+    
+    setAuditLogs(response.data.data.logs);
+    
+  } catch (error) {
+    showToast('Erreur de chargement de l\'historique', 'error');
+  }
+};

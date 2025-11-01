@@ -1,349 +1,302 @@
-# MDMC Music Ads - CRM Odoo Complet 
+# MDMC Music Ads CRM
 
-## 🎵 À Propos
+🎵 **CRM complet pour agences de marketing musical** - Gestion des leads, campagnes et analytics en temps réel.
 
-Ce projet livre un **CRM Odoo 17 complet** prêt pour la production, spécialement conçu pour **MDMC Music Ads** - une agence de marketing musical spécialisée dans la promotion d'artistes et labels indépendants sur les plateformes digitales.
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7+-green.svg)](https://mongodb.com/)
+[![Express](https://img.shields.io/badge/Express-4+-black.svg)](https://expressjs.com/)
 
-### 🏢 Modèle Économique Unique
+## 🚀 Fonctionnalités principales
 
-- **Honoraires d'agence** : 200€ HT/mois par plateforme (YouTube, Meta, TikTok)
-- **Budget média** : Payé directement par le client aux plateformes (non facturé par Odoo)
-- **Facturation** : 100% à la commande ou abonnement récurrent mensuel
-- **Reporting transparent** : Distinction claire honoraires vs budget média
+### 📊 **Gestion des Leads**
+- Capture automatique via webhooks (formulaires website)
+- Système de priorités automatique basé sur le budget et la plateforme
+- Suivi du pipeline de conversion en temps réel
+- Architecture lead-to-company pour la facturation
 
-## 🚀 Fonctionnalités Principales
+### 🎯 **Gestion des Campagnes**
+- Création et suivi des campagnes multi-plateformes
+- Intégration TikTok, Meta, YouTube, Spotify, Google Ads
+- KPIs et métriques de performance en temps réel
+- Budgeting et ROI tracking
 
-### 💼 CRM & Prospection
-- **Capture de leads** via webhook depuis site externe
-- **Scoring automatique** basé sur budget, plateformes, pays, genre musical
-- **Séquences d'emailing** automatisées (J+0, J+3, J+7)
-- **Conversion leads → clients** avec données spécifiques musique
+### 📈 **Analytics Avancés**
+- Dashboard temps réel avec métriques calculées
+- IA Insights basées sur les données réelles
+- Objectifs mensuels et tracking de progression
+- Exports et rapports automatisés
 
-### 💰 Ventes & Abonnements
-- **Produits honoraires** pré-configurés par plateforme
-- **Facturation immédiate** à la confirmation de commande
-- **Abonnements récurrents** mensuels (OCA Contract)
-- **Paiements en ligne** (Stripe/SEPA/PayPal)
+### 🔐 **Sécurité Enterprise**
+- Authentification JWT avec refresh tokens
+- Chiffrement AES-256 pour les données sensibles
+- Rate limiting et protection CSRF
+- Gestion des rôles et permissions
 
-### 📊 Gestion de Campagnes
-- **Fiches campagnes** avec budgets déclaratifs par plateforme
-- **Ingestion KPIs** automatique via API REST sécurisée
-- **Métriques complètes** : spend, impressions, vues, clics, CTR, CPV, conversions
-- **Alertes budget** avec seuils configurables
-- **Historique jour par jour** des performances
+## 🛠️ Stack Technique
 
-### 🔧 Support & Helpdesk
-- **Tickets** par email/portail client
-- **SLA simples** et routage par catégories
-- **Intégration OCA helpdesk**
+### Frontend
+- **React 18** avec Hooks et Context API
+- **React Query** pour la gestion d'état serveur
+- **React Router** pour la navigation
+- **Socket.io Client** pour les updates temps réel
+- **CSS-in-JS** avec design system MDMC
 
-### 📈 Reporting & Analytics
-- **Rapports PDF** hebdomadaires/mensuels par campagne
-- **Dashboard direction** : CA, MRR, churn, conversion leads→clients
-- **Distinction visuelle** honoraires vs budget média
-- **Envoi automatique** aux clients
+### Backend
+- **Node.js 18+** avec ES Modules
+- **Express.js** avec architecture RESTful
+- **MongoDB** avec Mongoose ODM
+- **Socket.io** pour temps réel
+- **JWT** pour l'authentification
+- **Bcrypt** pour les mots de passe
 
-### 🛡️ RGPD & Sécurité
-- **Audit log complet** (OCA auditlog)
-- **Export/anonymisation** contacts
-- **Purge automatique** leads inactifs (24 mois)
-- **Consentements marketing** horodatés
-- **Rôles utilisateurs** stricts (SDR, Sales, PM, Support, Compta, Direction)
+### Services Externes
+- **Mailgun** pour l'envoi d'emails
+- **Railway** pour MongoDB hosting
+- **Brevo** comme fallback SMTP
 
-### 🌐 Portail Client
-- **Pages dédiées** : infos, factures, campagnes, rapports, tickets
-- **Upload d'assets** créatifs
-- **Suivi temps réel** des performances
-- **Interface responsive** moderne
-
-## 🏗️ Architecture Technique
-
-### Stack Principal
-- **Odoo 17 Community Edition** + modules OCA
-- **PostgreSQL 15** (base de données)
-- **Redis** (queue_job OCA)
-- **n8n** (intégrations APIs)
-- **Traefik** (reverse proxy + SSL)
-- **Docker Compose** (orchestration)
-
-### Modules Développés
-```
-odoo/addons/
-├── mdmc_base/          # Configuration de base, plateformes, rôles
-├── mdmc_crm/          # CRM étendu, scoring, séquences email
-├── mdmc_sales/        # Ventes, abonnements, produits honoraires
-├── mdmc_campaigns/    # Campagnes publicitaires, ingestion KPIs
-├── mdmc_helpdesk/     # Support client (OCA helpdesk)
-├── mdmc_reporting/    # Rapports PDF, dashboards
-├── mdmc_gdpr/         # Conformité RGPD, export/anonymisation
-└── mdmc_portal/       # Portail client moderne
-```
-
-### Intégrations n8n
-- **Google Ads API** → YouTube KPIs
-- **Meta Marketing API** → Facebook/Instagram KPIs  
-- **TikTok Business API** → TikTok Ads KPIs
-- **Google Analytics 4** → Données de conversion site web
-
-## 🚀 Installation & Déploiement
+## 🚀 Installation et Déploiement
 
 ### Prérequis
-- Docker & Docker Compose
-- Nom de domaine configuré
-- Certificats SSL (Let's Encrypt via Traefik)
-- Comptes API : Google Ads, Meta, TikTok, GA4
-
-### 1. Clonage et Configuration
 ```bash
-git clone <votre-repo>
-cd mdmc-odoo
+node >= 18.0.0
+npm >= 8.0.0
+MongoDB >= 7.0
+```
 
-# Copier et configurer les variables d'environnement
+### Installation locale
+```bash
+# Cloner le repository
+git clone https://github.com/votre-username/mdmc-crm.git
+cd mdmc-crm
+
+# Installer les dépendances
+npm install
+cd client && npm install && cd ..
+
+# Configuration environnement
 cp .env.example .env
 # Éditer .env avec vos valeurs
+
+# Démarrer en développement
+npm run dev:all
 ```
 
-### 2. Variables Critiques (.env)
+### Variables d'environnement essentielles
+
 ```env
-# Domaines
-ODOO_DOMAIN=crm.mdmcmusicads.com
-N8N_DOMAIN=automation.mdmcmusicads.com
+# Base
+NODE_ENV=production
+PORT=5001
+BASE_URL=https://votre-domaine.com
 
-# Base de données
-DB_PASSWORD=votre_mot_de_passe_db_securise
+# MongoDB (Railway recommandé)
+MONGODB_URI=mongodb://user:pass@host:port/db
+DB_NAME=mdmc_crm
 
-# API
-MDMC_API_KPI_TOKEN=votre_token_api_securise
+# JWT Security (générer avec OpenSSL)
+JWT_SECRET=votre_jwt_secret_64_chars
+JWT_REFRESH_SECRET=votre_refresh_secret_64_chars
 
-# SMTP Production
-SMTP_SERVER=smtp.brevo.com
-SMTP_USER=votre_utilisateur_smtp
-SMTP_PASSWORD=votre_mot_de_passe_smtp
+# Email (Mailgun recommandé)
+MAILGUN_API_KEY=votre_mailgun_api_key
+MAILGUN_DOMAIN=mg.votre-domaine.com
+MAILGUN_FROM=MDMC CRM <noreply@votre-domaine.com>
 ```
 
-### 3. Lancement Production
+### Déploiement Railway
+
+1. **Créer le projet Railway**
 ```bash
-# Production complète
-docker-compose -f docker/docker-compose.prod.yml up -d
+# Installer Railway CLI
+npm install -g @railway/cli
 
-# Vérifier les services
-docker-compose -f docker/docker-compose.prod.yml ps
+# Login et deploy
+railway login
+railway init
+railway up
 ```
 
-### 4. Configuration Initiale Odoo
+2. **Configuration MongoDB Railway**
+- Créer service MongoDB
+- Copier la connection string dans `MONGODB_URI`
 
-#### a) Première Connexion
-- URL : https://crm.mdmcmusicads.com
-- Base : `mdmc_odoo`
-- Email admin : `admin@mdmcmusicads.com`
-- Mot de passe : Configuré dans `.env`
-
-#### b) Installation Modules
+3. **Variables d'environnement**
 ```bash
-# Installer tous les modules MDMC
-# Via interface : Apps → Rechercher "MDMC" → Installer tout
-# Ou via commande :
-docker-compose exec odoo odoo -d mdmc_odoo -i mdmc_base,mdmc_crm,mdmc_sales,mdmc_campaigns,mdmc_helpdesk,mdmc_reporting,mdmc_gdpr,mdmc_portal --stop-after-init
+railway variables set NODE_ENV=production
+railway variables set PORT=3000
+railway variables set MONGODB_URI="mongodb://..."
+railway variables set JWT_SECRET="..."
+# Ajouter toutes les variables nécessaires
 ```
 
-#### c) Configuration API KPI
+### Déploiement Vercel
+
 ```bash
-# Configurer le token API dans Odoo
-# Paramètres → Paramètres Techniques → Paramètres Système
-# Créer : mdmc.api.kpi_token = votre_token_api_securise
+# Installation Vercel CLI
+npm install -g vercel
+
+# Configuration
+vercel --prod
+
+# Variables d'environnement via dashboard
+# ou vercel env add VARIABLE_NAME
 ```
 
-### 5. Configuration n8n
+## 🔧 Scripts disponibles
 
-#### a) Accès n8n
-- URL : https://automation.mdmcmusicads.com
-- User/Pass : Configurés dans `.env`
-
-#### b) Import Workflows
 ```bash
-# Importer les workflows depuis l'interface n8n
-# Settings → Import from File
-# Fichiers : n8n/workflows/*.json
+# Développement
+npm run dev:all          # Frontend + Backend
+npm run dev:client       # Frontend seulement
+npm run dev:server       # Backend seulement
+
+# Production
+npm run build            # Build frontend
+npm run start            # Démarrer production
+npm run start:server     # Backend production
+
+# Maintenance
+npm run create:admin     # Créer utilisateur admin
+npm run test             # Tests (à implémenter)
+npm run lint             # Linting (à implémenter)
 ```
 
-#### c) Configuration Credentials
-Dans n8n, créer les credentials :
-- **Google Ads API** (OAuth2)
-- **Meta Marketing API** (Access Token)  
-- **TikTok Business API** (Access Token)
-- **Google Analytics 4** (Service Account)
+## 👤 Première connexion
 
-### 6. Tests de Fonctionnement
-
-#### a) Test API KPI
+### Créer un administrateur
 ```bash
-curl -X POST https://crm.mdmcmusicads.com/api/mdmc/v1/kpis/test \
-  -H "X-API-KEY: votre_token_api"
+# Exécuter le script de création admin
+node create-secure-admin.js
+
+# Ou utiliser le script npm
+npm run create:admin
 ```
 
-#### b) Test Webhook Leads
+Identifiants par défaut:
+- **Email**: denis@mdmcmusicads.com
+- **Mot de passe**: généré automatiquement et envoyé par email
+
+**⚠️ Changez immédiatement le mot de passe après la première connexion**
+
+## 🌐 Intégration Website
+
+Le CRM s'intègre automatiquement avec votre site web via webhooks:
+
+### Endpoint webhook
+```
+POST /api/webhooks/form-submission
+```
+
+### Intégration formulaire
+```javascript
+// Exemple d'intégration dans votre form
+const submitToCRM = async (formData) => {
+  const response = await fetch('/api/webhooks/form-submission', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: formData.phone,
+      artistName: formData.artistName,
+      platform: formData.platform,
+      budget: formData.budget,
+      message: formData.message,
+      source: 'website',
+      formType: 'contact'
+    })
+  });
+};
+```
+
+## 📱 API Reference
+
+### Authentication
 ```bash
-curl -X POST https://crm.mdmcmusicads.com/api/mdmc/v1/leads/webhook \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test Artist",
-    "email": "test@example.com",
-    "artist_name": "TestArtist",
-    "genre": "pop",
-    "budget_estimated": 1500,
-    "platforms_interest": ["youtube", "meta"]
-  }'
+POST /api/auth/login
+POST /api/auth/register
+POST /api/auth/refresh
 ```
 
-## 📊 Utilisation Métier
-
-### Pour les SDR (Sales Development Representatives)
-1. **Leads entrants** → Tableau Kanban par score
-2. **Séquences d'emailing** → Automatiques ou manuelles
-3. **Qualification** → Formulaire complet avec scoring
-4. **Transfert Sales** → Assignation + notification
-
-### Pour l'Équipe Sales
-1. **Création devis** → Produits honoraires par plateforme
-2. **Mode paiement** → Immédiat ou abonnement mensuel
-3. **Confirmation** → Facturation automatique
-4. **Suivi client** → Portail + reporting
-
-### Pour les Chefs de Projet
-1. **Création campagne** → Budgets déclaratifs par plateforme
-2. **Suivi KPIs** → Ingestion automatique n8n
-3. **Alertes budget** → Notifications dépassement seuils
-4. **Rapports clients** → PDF automatiques
-
-### Pour la Direction
-1. **Dashboard KPIs** → CA, MRR, churn, conversion leads
-2. **Analyse performance** → Par plateforme, par période
-3. **Reporting financier** → Distinction honoraires/budget média
-
-## 🔧 Maintenance & Monitoring
-
-### Sauvegarde Automatique
+### Leads
 ```bash
-# Script de sauvegarde PostgreSQL (à programmer via cron)
-#!/bin/bash
-DATE=$(date +%Y%m%d_%H%M%S)
-docker-compose exec -T db pg_dump -U odoo mdmc_odoo > backups/mdmc_odoo_$DATE.sql
-gzip backups/mdmc_odoo_$DATE.sql
-
-# Rotation des sauvegardes (garder 30 jours)
-find backups/ -name "*.sql.gz" -mtime +30 -delete
+GET    /api/leads                 # Liste des leads
+POST   /api/leads                 # Créer lead
+PUT    /api/leads/:id             # Modifier lead
+DELETE /api/leads/:id             # Supprimer lead
 ```
 
-### Monitoring Santé Services
+### Campaigns
 ```bash
-# Check health status
-docker-compose -f docker/docker-compose.prod.yml ps
-docker-compose -f docker/docker-compose.prod.yml logs odoo --tail 50
-docker-compose -f docker/docker-compose.prod.yml logs n8n --tail 50
+GET    /api/campaigns             # Liste campagnes
+POST   /api/campaigns             # Créer campagne
+PUT    /api/campaigns/:id         # Modifier campagne
 ```
 
-### Métriques Importantes
-- **Uptime services** : Odoo, PostgreSQL, n8n, Traefik
-- **Performance Odoo** : Temps réponse, workers actifs
-- **Volume données** : Croissance base, logs, sauvegardes
-- **Intégrations n8n** : Succès/échecs workflows KPIs
-
-## 🔒 Sécurité Production
-
-### SSL/TLS
-- **Let's Encrypt** automatique via Traefik
-- **HSTS** activé
-- **Redirection HTTP → HTTPS** forcée
-
-### Base de Données  
-- **Accès restreint** aux services internes uniquement
-- **Mots de passe forts** (générés)
-- **Sauvegardes chiffrées**
-
-### APIs
-- **Tokens authentification** pour endpoints KPIs
-- **Rate limiting** Traefik
-- **Logs audit** complets (OCA auditlog)
-
-### Données Personnelles (RGPD)
-- **Consentements** explicites et horodatés
-- **Droit à l'oubli** : anonymisation/suppression
-- **Export données** : formats JSON/CSV/ZIP
-- **Purge automatique** leads inactifs
-
-## 🧪 Tests & Qualité
-
-### Tests Automatisés
+### Analytics
 ```bash
-# Lancer les tests Odoo
-python odoo/odoo-bin -d test_db --test-enable --stop-after-init -i mdmc_base,mdmc_crm,mdmc_sales,mdmc_campaigns
+GET    /api/analytics/overview    # Métriques générales
+GET    /api/analytics/conversion  # Taux de conversion
+GET    /api/analytics/revenue     # Revenus
 ```
 
-### CI/CD GitHub Actions
-- **Lint** : flake8, black, isort, pylint-odoo
-- **Tests** : modules Odoo + couverture
-- **Sécurité** : Bandit scan
-- **Build** : Images Docker
-- **Déploiement** : staging/production automatique
+## 🎨 Design System
 
-### Pre-commit Hooks
+Le CRM utilise le design system MDMC:
+
+```css
+/* Couleurs principales */
+--mdmc-black: #000000
+--mdmc-white: #ffffff
+--mdmc-red: #e50914
+--mdmc-gray: #f8f9fa
+
+/* Typographie */
+--font-primary: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif
+```
+
+## 🔧 Maintenance et Monitoring
+
+### Logs
+Les logs sont automatiquement créés dans `logs/`:
+- `access.log` - Accès API
+- `error.log` - Erreurs système
+- `crm.log` - Logs métier
+
+### Monitoring recommandé
+- **Sentry** pour le tracking d'erreurs
+- **LogRocket** pour les sessions utilisateur
+- **Uptime Robot** pour la surveillance
+
+### Backup automatique
 ```bash
-# Installation
-pip install pre-commit
-pre-commit install
-
-# Les hooks vérifient automatiquement :
-# - Formatting (black, isort)  
-# - Linting (flake8, pylint-odoo)
-# - Standards OCA
+# Configuration backup dans .env
+BACKUP_RETENTION_DAYS=30
+BACKUP_S3_BUCKET=mdmc-backups
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
 ```
 
-## 🎯 KPIs Business
+## 🤝 Contribution
 
-### Métriques de Conversion
-- **Lead → Prospect qualifié** : X%
-- **Prospect → Client** : Y%
-- **Taux de réponse emails** séquences
-- **Temps moyen** lead → première vente
+1. Fork le projet
+2. Créer une branche feature (`git checkout -b feature/nouvelle-fonctionnalite`)
+3. Commit vos changements (`git commit -m 'Ajout nouvelle fonctionnalité'`)
+4. Push vers la branche (`git push origin feature/nouvelle-fonctionnalite`)
+5. Ouvrir une Pull Request
 
-### Métriques Financières
-- **MRR (Monthly Recurring Revenue)** 
-- **Churn rate** abonnements
-- **ARPU (Average Revenue Per User)**
-- **CAC (Customer Acquisition Cost)**
+## 📄 License
 
-### Métriques Opérationnelles
-- **Nombre campagnes** actives
-- **Budget média total** géré (déclaratif)
-- **Performance moyenne** : CTR, CPV, conversions
-- **Satisfaction client** (CSAT support)
+Ce projet est sous licence propriétaire MDMC Music Ads.
 
-## 📞 Support & Contact
+## 📞 Support
 
-### Support Technique
-- **Documentation** : Ce README + code commenté
-- **Logs** : `docker-compose logs -f [service]`
-- **Debug Odoo** : Mode développeur + logs détaillés
-
-### Formation Équipe
-1. **Administrateur Odoo** : Installation, configuration, maintenance
-2. **Utilisateurs métier** : Workflows CRM, campagnes, reporting  
-3. **Intégrateurs** : APIs, n8n, personnalisations
-
-### Roadmap Évolutions
-- [ ] **Mobile app** React Native pour consultations terrain
-- [ ] **IA recommendations** optimisation campagnes
-- [ ] **Intégrations avancées** : Spotify for Artists, Apple Music
-- [ ] **Multi-devises** pour expansion internationale
-- [ ] **White-label** pour partenaires/revendeurs
+- **Email**: support@mdmcmusicads.com
+- **Documentation**: [docs.mdmcmusicads.com](https://docs.mdmcmusicads.com)
+- **Issues**: [GitHub Issues](https://github.com/votre-username/mdmc-crm/issues)
 
 ---
 
-## 🎵 **MDMC Music Ads - Votre Agence Marketing Musical de Référence**
-
-*Transformez vos artistes en succès digitaux avec notre CRM professionnel !*
-
----
-
-**© 2025 MDMC Music Ads - Tous droits réservés**  
-*Développé avec ❤️ pour la communauté musicale indépendante*
+**🎵 Développé avec ❤️ par l'équipe MDMC Music Ads**
