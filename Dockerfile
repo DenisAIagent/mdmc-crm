@@ -20,5 +20,6 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# Start the application
+# Make start.sh executable and start the application
+RUN chmod +x start.sh
 CMD ["./start.sh"]
