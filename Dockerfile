@@ -1,28 +1,52 @@
-# Force Node.js 20
+# ============================================
+# Stage 1: Build du client React/Vite
+# ============================================
+FROM node:20-alpine AS client-builder
+
+WORKDIR /app
+
+# Copier les fichiers de configuration du client
+COPY client/package*.json ./client/
+
+# Installer les dépendances du client
+WORKDIR /app/client
+RUN npm ci
+
+# Copier le code source du client
+COPY client/ ./
+
+# Build du client (génère /app/client/dist)
+RUN npm run build
+
+# ============================================
+# Stage 2: Image de production finale
+# ============================================
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy all package files and start script
+# Copier le package.json racine pour les dépendances du serveur
 COPY package*.json ./
-COPY start.sh ./
-COPY client/ ./client/
 
-# Install all dependencies (including dev for build)
-RUN npm install --include=dev
-RUN cd client && npm install --include=dev
+# Installer UNIQUEMENT les dépendances de production du serveur
+RUN npm ci --only=production
 
-# Build the application
-RUN npm run build
+# Copier le code du serveur
+COPY server/ ./server/
 
-# Make start.sh executable
-RUN chmod +x start.sh
+# Copier le build du client depuis le stage précédent
+COPY --from=client-builder /app/client/dist ./client/dist
 
-# Set environment variables
+# Variables d'environnement par défaut
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Exposer le port
 EXPOSE 3000
 
-# Start the application
-CMD ["./start.sh"]
+# Health check pour Railway
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Démarrer directement le serveur (plus de start.sh nécessaire)
+CMD ["node", "server/server.js"]
