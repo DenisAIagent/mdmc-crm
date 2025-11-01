@@ -15,6 +15,9 @@ RUN npm ci
 # Copier le code source du client
 COPY client/ ./
 
+# Clean build pour éviter les incohérences de cache
+RUN rm -rf dist .vite node_modules/.vite
+
 # Build du client (génère /app/client/dist)
 RUN npm run build
 

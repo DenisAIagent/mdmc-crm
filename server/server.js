@@ -131,6 +131,19 @@ app.use('/api/integrations', integrationsRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/webhooks', webhooksRoutes)
 
+// Middleware global pour désactiver le cache sur Railway
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    // Headers anti-cache Railway-friendly
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private')
+    res.setHeader('Pragma', 'no-cache')
+    res.setHeader('Expires', '0')
+    res.setHeader('Surrogate-Control', 'no-store')
+    res.setHeader('X-Accel-Expires', '0')
+    next()
+  })
+}
+
 // Servir les fichiers statiques du client en production
 if (process.env.NODE_ENV === 'production') {
   const clientDistPath = path.join(__dirname, '..', 'client', 'dist')
@@ -141,10 +154,12 @@ if (process.env.NODE_ENV === 'production') {
     etag: false,
     lastModified: false,
     setHeaders: (res, filePath) => {
-      // Headers anti-cache agressifs
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      // Headers anti-cache agressifs + Railway-specific
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private')
       res.setHeader('Pragma', 'no-cache')
       res.setHeader('Expires', '0')
+      res.setHeader('Surrogate-Control', 'no-store')
+      res.setHeader('X-Accel-Expires', '0')
 
       if (filePath.endsWith('.js')) {
         res.setHeader('Content-Type', 'application/javascript; charset=UTF-8')
