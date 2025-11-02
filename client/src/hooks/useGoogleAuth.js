@@ -251,7 +251,16 @@ function generateRandomString(length) {
  * Vérifier si Google OAuth est configuré
  */
 export function isGoogleAuthEnabled() {
-  return !!(import.meta.env.VITE_GOOGLE_CLIENT_ID && import.meta.env.VITE_API_URL)
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  const apiUrl = import.meta.env.VITE_API_URL
+
+  // Debug logs
+  console.log('🔍 Google Auth Debug:')
+  console.log('  VITE_GOOGLE_CLIENT_ID:', clientId)
+  console.log('  VITE_API_URL:', apiUrl)
+  console.log('  Enabled:', !!(clientId && apiUrl))
+
+  return !!(clientId && apiUrl)
 }
 
 /**
