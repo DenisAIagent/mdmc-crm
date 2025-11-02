@@ -37,7 +37,12 @@
       "Bash(pkill:*)",
       "Bash(timeout 30 npm run build)",
       "Bash(git remote set-url:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git branch:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote remove:*)",
+      "Bash(./generate-env.sh:*)",
+      "Bash(PORT=3003 NODE_ENV=production node server/server-fixed.js)"
     ],
     "deny": [],
     "ask": []
